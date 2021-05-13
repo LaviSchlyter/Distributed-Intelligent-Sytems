@@ -14,7 +14,7 @@
 /*VERBOSE_FLAGS*/
 #define VERBOSE_ODO_ENC_BONUS false     	        // Print odometry values computed with wheel encoders (Bonus)
 #define VERBOSE_ODO_ENC false     			// Print odometry values computed with wheel encoders
-#define VERBOSE_ODO_ACC false    			// Print odometry values computed with accelerometer
+#define VERBOSE_ODO_ACC true    			// Print odometry values computed with accelerometer
 //-----------------------------------------------------------------------------------//
 /*GLOBAL*/
 static double _T;
@@ -33,7 +33,10 @@ void odo_compute_acc(pose_t* odo, const double acc[3], const double acc_mean[3],
 {
         // Compute acceleration in frame A + remove the bias (in 2D motion)
 	double acc_wx = ( acc[1] - acc_mean[1])*cos(heading);
-	double acc_wy = ( acc[0] - acc_mean[0])*sin(heading);
+	double acc_wy = -( acc[0] - acc_mean[0])*sin(heading);
+	//printf("Acceleration : %f %f \n", acc_wx, acc_wy);
+	
+	
         // 2D motion model //
         
 
@@ -42,14 +45,14 @@ void odo_compute_acc(pose_t* odo, const double acc[3], const double acc_mean[3],
 	_odo_speed_acc.y += acc_wy *_T;
 
         // Position
-	_odo_pose_acc.x += _odo_speed_acc.x * _T;
-	_odo_pose_acc.y += _odo_speed_acc.y * _T;
+	_odo_pose_acc.x += _odo_speed_acc.x * _T*cos(heading);
+	_odo_pose_acc.y += _odo_speed_acc.y * _T*sin(heading);
 
         // Upgrade heading with wheel encoder value 
         _odo_pose_acc.heading = heading;
 
 	memcpy(odo, &_odo_pose_acc, sizeof(pose_t));
-	//printf("Acceleration : %f %f %f\n", acc[0] , acc[1] , acc[2]);
+	
 
         
  	//printf("ODO with acceleration : %g %g %g\n", odo->x , odo->y , RAD2DEG(odo->heading));
@@ -95,7 +98,7 @@ void odo_compute_encoders(pose_t* odo, double Aleft_enc, double Aright_enc)
 
 	memcpy(odo, &_odo_pose_enc, sizeof(pose_t));
 
-    	printf("ODO with wheel encoders : %g %g %g\n", odo->x , odo->y , RAD2DEG(odo->heading) );
+    	//printf("ODO with wheel encoders : %g %g %g\n", odo->x , odo->y , RAD2DEG(odo->heading) );
     	
 }
 
