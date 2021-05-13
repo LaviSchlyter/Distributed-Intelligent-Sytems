@@ -2,8 +2,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdbool.h>
-
-#include <odometry.h>
+#include "odometry.h"
 
 // Code with minor changes taken from Lab03 DIS-EPFL
 //-----------------------------------------------------------------------------------//
@@ -12,14 +11,13 @@
 #define WHEEL_RADIUS 	        0.0205		// Radius of the wheel in meter
 
 /*VERBOSE_FLAGS*/
-#define VERBOSE_ODO_ENC_BONUS false     	        // Print odometry values computed with wheel encoders (Bonus)
 #define VERBOSE_ODO_ENC false     			// Print odometry values computed with wheel encoders
-#define VERBOSE_ODO_ACC true    			// Print odometry values computed with accelerometer
+#define VERBOSE_ODO_ACC false    			// Print odometry values computed with accelerometer
 //-----------------------------------------------------------------------------------//
 /*GLOBAL*/
 static double _T;
 
-static pose_t _odo_pose_acc, _odo_speed_acc, _odo_pose_enc, _odo_pose_enc_bonus;
+static pose_t _odo_pose_acc, _odo_speed_acc, _odo_pose_enc;
 //-----------------------------------------------------------------------------------//
 
 /**
@@ -31,14 +29,11 @@ static pose_t _odo_pose_acc, _odo_speed_acc, _odo_pose_enc, _odo_pose_enc_bonus;
  */
 void odo_compute_acc(pose_t* odo, const double acc[3], const double acc_mean[3], const double heading)
 {
-        // Compute acceleration in frame A + remove the bias (in 2D motion)
+        /// Compute acceleration + remove the bias 
+        
 	double acc_wx = ( acc[1] - acc_mean[1])*cos(heading);
 	double acc_wy = -( acc[0] - acc_mean[0])*sin(heading);
-	//printf("Acceleration : %f %f \n", acc_wx, acc_wy);
 	
-	
-        // 2D motion model //
-        
 
         // Speed
 	_odo_speed_acc.x += acc_wx *_T;
@@ -53,9 +48,8 @@ void odo_compute_acc(pose_t* odo, const double acc[3], const double acc_mean[3],
 
 	memcpy(odo, &_odo_pose_acc, sizeof(pose_t));
 	
-
-        
- 	//printf("ODO with acceleration : %g %g %g\n", odo->x , odo->y , RAD2DEG(odo->heading));
+        if (VERBOSE_ODO_ACC)
+              printf("ODO with acceleration : %g %g %g\n", odo->x , odo->y , RAD2DEG(odo->heading));
 
 
  	
@@ -98,7 +92,9 @@ void odo_compute_encoders(pose_t* odo, double Aleft_enc, double Aright_enc)
 
 	memcpy(odo, &_odo_pose_enc, sizeof(pose_t));
 
-    	//printf("ODO with wheel encoders : %g %g %g\n", odo->x , odo->y , RAD2DEG(odo->heading) );
+    	
+    	if (VERBOSE_ODO_ENC)
+          	printf("ODO with wheel encoders : %g %g %g\n", odo->x , odo->y , RAD2DEG(odo->heading) );
     	
 }
 
@@ -115,8 +111,6 @@ void odo_reset(int time_step)
 	memset(&_odo_speed_acc, 0 , sizeof(pose_t));
 
 	memset(&_odo_pose_enc, 0 , sizeof(pose_t));
-
-	memset(&_odo_pose_enc_bonus, 0 , sizeof(pose_t));
 
 	_T = time_step / 1000.0;
 }
