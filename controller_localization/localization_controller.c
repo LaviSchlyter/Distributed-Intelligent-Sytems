@@ -32,13 +32,14 @@
 #define true 1
 #define false 0
 #define VERBOSE_CALIBRATION false
+#define VERBOSE_PRINT_LOG true    // Print log on CSV file 
 
 //---------------
 /*VARIABLES*/ 
 static pose_t         _pose, _odo_acc, _odo_enc, _kal_wheel, _kal_acc;
 static kalman_t        pos_kalman, pos_kalman_better;
 // Initial position found using the Robot node , then position
-static pose_t         _pose_origin = {-2.9, 0.0, 0.0};
+static pose_t         _pose_origin = {-2.9, 0.0, 0};
 static FILE *fp;
 
 
@@ -64,7 +65,8 @@ void init_devices(int ts);
 
 void init_devices(int ts) {
   dev_gps = wb_robot_get_device("gps");
-  wb_gps_enable(dev_gps, 1000); // Enable GPS every 1000ms <=> 1s
+  wb_gps_enable(dev_gps,1); // Enable GPS every 1000ms <=> 1s
+  //wb_gps_enable(dev_gps, 1000);
   
   dev_acc = wb_robot_get_device("accelerometer");
   wb_accelerometer_enable(dev_acc, ts); // Time step frequency (ts)
@@ -116,9 +118,14 @@ int main()
     // Get the encoder values (wheel motor values)
     controller_get_encoder();
 
-    _meas.acc_mean[0] = 6.44938e-05 ; //y
+    // Onto Robot frame 
+    _meas.acc_mean[0] = -6.44938e-05 ; //y
     _meas.acc_mean[1] = 0.00766816; // x
     _meas.acc_mean[2] = 9.62942 ; // z
+    // Onto World Frame (xx)
+    //_meas.acc_mean[0] = 6.44938e-05 ; //y
+    //_meas.acc_mean[1] = 9.62942; // z
+    //_meas.acc_mean[2] = 0.00766816 ; // x
     
   
   // Uncomment the if else block in order to calibrate the accelerometer
@@ -134,17 +141,35 @@ int main()
   
 
     if (!VERBOSE_CALIBRATION) {
+    // Update gps measurements
+    controller_get_gps();
+    
+    
+    printf("GPS_ x = %g, y = %g, heading = %g \n\n", _meas.gps[0], _meas.gps[2], RAD2DEG(controller_get_heading_gps()));
+
     
     // Localization Odometry from wheel encoders
     odo_compute_encoders(&_odo_enc, _meas.left_enc - _meas.prev_left_enc, _meas.right_enc - _meas.prev_right_enc);
+    
     // Localization Odometry from accelerometer with heading from wheel encoders
     odo_compute_acc(&_odo_acc, _meas.acc, _meas.acc_mean,_odo_enc.heading);
     
     // Kalman with wheel encoders
     double time_now_s = wb_robot_get_time();
-    const int time_step_ = wb_robot_get_basic_time_step();
-    compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, _pose, _odo_enc.heading, _meas.left_enc - _meas.prev_left_enc, _meas.right_enc - _meas.prev_right_enc);
-    compute_kalman_acc(&_kal_acc, time_step_ , time_now_s, _pose, _odo_enc.heading, _meas);
+    int time_step_ = wb_robot_get_basic_time_step();
+    
+    // Here I use pose as GPS
+    //compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, _pose, _odo_enc.heading, _meas.left_enc - _meas.prev_left_enc, _meas.right_enc - _meas.prev_right_enc);
+    //compute_kalman_acc(&_kal_acc, time_step_ , time_now_s, _pose, _odo_enc.heading, _meas);
+    
+    
+    // Here I use GPS as GPS
+    
+    compute_kalman_acc(&_kal_acc, time_step_ , time_now_s, _odo_enc.heading, _meas, _pose);
+    time_now_s = wb_robot_get_time();
+    // 13-05 // controller_get_heading_gps bad 
+    compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, _meas, _meas.left_enc - _meas.prev_left_enc, _meas.right_enc - _meas.prev_right_enc, _pose);
+    
     
    }
 
@@ -157,7 +182,10 @@ int main()
     //trajectory_4(dev_left_motor, dev_right_motor);
     //trajectory_5(dev_left_motor, dev_right_motor);
   }
-  controller_print_log(wb_robot_get_time());
+  
+  if (VERBOSE_PRINT_LOG) {
+      controller_print_log(wb_robot_get_time());
+      }
   }
   // Close log file
   if(fp != NULL)
@@ -179,13 +207,12 @@ void controller_get_pose_gps()
   if (time_now_s - last_gps_time_s > 1.0f) {
     
     last_gps_time_s = time_now_s;
-    // Update gps measurements
-    controller_get_gps();
+    
     _pose.x = _meas.gps[0] - _pose_origin.x;
       
     _pose.y = -(_meas.gps[2] - _pose_origin.y);
       
-    _pose.heading = controller_get_heading_gps() + _pose_origin.heading;
+    _pose.heading = -controller_get_heading_gps() + _pose_origin.heading;
     printf("ROBOT pose : %g %g %g\n", _pose.x , _pose.y , RAD2DEG(_pose.heading));
   
   }
@@ -217,7 +244,7 @@ double controller_get_heading_gps()
     // Orientation of the robot
     double delta_x = _meas.gps[0] - _meas.prev_gps[0];
 
-    double delta_y = -(_meas.gps[2] - _meas.prev_gps[2]);
+    double delta_y = (_meas.gps[2] - _meas.prev_gps[2]);
 
     // Compute the heading of the robot
     double heading = atan2(delta_y, delta_x);
@@ -314,7 +341,7 @@ void controller_compute_mean_acc()
         
         
       
-        
+    
         
        
 }
@@ -336,7 +363,8 @@ bool controller_init_log(const char* filename)
 
   if( !err )
   {
-    fprintf(fp, "time; pose_x; pose_y; pose_heading;  gps_x; gps_y; gps_z; acc_0; acc_1; acc_2; right_enc; left_enc; odo_acc_x; odo_acc_y; odo_acc_heading; odo_enc_x; odo_enc_y; odo_enc_heading; kal_wheel_x; kal_wheel_y; kal_wheel_heading; kal_acc_x; kal_acc_y; kal_acc_heading\n");
+    fprintf(fp, "time; pose_x; pose_y; pose_heading;  gps_x; gps_y; gps_z; acc_x; acc_y; acc_z; right_enc; left_enc; odo_acc_x; odo_acc_y; odo_acc_heading; odo_enc_x; odo_enc_y; odo_enc_heading; kal_wheel_x; kal_wheel_y; kal_wheel_heading; kal_acc_x; kal_acc_y; kal_acc_heading\n");
+    
   }
 
   return err;
@@ -359,8 +387,8 @@ void controller_print_log(double time)
   if( fp != NULL)
   {
     fprintf(fp, "%g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g; %g\n",
-            time, _pose.x, _pose.y , _pose.heading, _meas.gps[0], _meas.gps[1], 
-      _meas.gps[2], _meas.acc[0], _meas.acc[1], _meas.acc[2], _meas.right_enc, _meas.left_enc, 
+            time, _pose.x, _pose.y , _pose.heading, _meas.gps[0], _meas.gps[2], 
+      _meas.gps[1], _meas.acc[1] - _meas.acc_mean[1], _meas.acc[0]- _meas.acc_mean[0], _meas.acc[2]- _meas.acc_mean[2], _meas.right_enc, _meas.left_enc, 
       _odo_acc.x, _odo_acc.y, _odo_acc.heading, _odo_enc.x, _odo_enc.y, _odo_enc.heading, _kal_wheel.x, _kal_wheel.y, _kal_wheel.heading, _kal_acc.x, _kal_acc.y, _kal_acc.heading);
   }
 
