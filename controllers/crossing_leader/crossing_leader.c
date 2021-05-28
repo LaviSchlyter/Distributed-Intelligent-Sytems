@@ -64,17 +64,20 @@ The idea is that the left group goes to right origin and vice versa
 
 
 #include <webots/robot.h>
-/*Webots 2018b*/
 #include <webots/motor.h>
+<<<<<<< HEAD
 #include <webots/gps.h>
 #include <webots/position_sensor.h>
 /*Webots 2018b*/
+=======
+>>>>>>> 6da2e62108a5093d4f2afc6224c5494d13e9c3ed
 #include <webots/differential_wheels.h>
 #include <webots/distance_sensor.h>
 #include <webots/emitter.h>
 #include <webots/receiver.h>
 
 #define NB_SENSORS	      8	      // Number of distance sensors
+<<<<<<< HEAD
 #define MIN_SENS          350     // Minimum sensibility value
 #define MAX_SPEED         800     // Maximum speed
 /*Webots 2018b*/
@@ -84,6 +87,13 @@ The idea is that the left group goes to right origin and vice versa
 #define AVOIDANCE_THRESH    1000  // Threshold above which we enter obstacle avoidance
 #define WHEEL_AXIS        0.057        // Distance between the two wheels in meter
 #define WHEEL_RADIUS            0.020        // Radius of the wheel in meter
+=======
+#define MIN_SENS           350      // Minimum sensibility value
+#define MAX_SPEED          800      // Maximum speed
+#define MAX_SPEED_WEB     6.28    // Maximum speed webots
+#define TIME_STEP	      64	      // Length of time step in [ms] 
+#define AVOIDANCE_THRESH  1000   // Threshold above which we enter obstacle avoidance
+>>>>>>> 6da2e62108a5093d4f2afc6224c5494d13e9c3ed
 
 // two leaders
 #define LEADER1_ID 0  // leader ID of robots_ID_group1
@@ -110,6 +120,7 @@ static double speed[2];                 // Speed calculated for migration
 
 
 
+<<<<<<< HEAD
 /*Webots 2018b*/
 WbDeviceTag dev_gps; // GPS handler 
 WbDeviceTag left_motor; //handler for left wheel of the robot
@@ -117,8 +128,12 @@ WbDeviceTag right_motor; //handler for the right wheel of the robot
 WbDeviceTag left_encoder;//handler for left encoder of the robot
 WbDeviceTag right_encoder;//handler for right encoder of the robot
 /*Webots 2018b*/
+=======
+WbDeviceTag left_motor; //handler for left wheel of the robot
+WbDeviceTag right_motor; //handler for the right wheel of the robot
+>>>>>>> 6da2e62108a5093d4f2afc6224c5494d13e9c3ed
 
-int e_puck_matrix[16] = {17,29,34,10,8,-38,-56,-76,-72,-58,-36,8,10,36,28,18}; // for obstacle avoidance
+int e_puck_matrix[2*NB_SENSORS] = {17,29,34,10,8,-38,-56,-76,-72,-58,-36,8,10,36,28,18}; // for obstacle avoidance
 
 WbDeviceTag ds[NB_SENSORS];	// Handle for the infrared distance sensors
 WbDeviceTag receiver;	    // Handle for the receiver node
@@ -425,13 +440,19 @@ int main(){
               send_ping();  // sending a ping to other robot, so they can measure their distance to this robot
               process_received_ping_messages();
               
+<<<<<<< HEAD
               
+=======
+              //printf("LEADER %d -----> ds_value[0] %d, ds_value[7] %d \n", robot_id_u, ds_value[0],ds_value[7]);
+>>>>>>> 6da2e62108a5093d4f2afc6224c5494d13e9c3ed
              
               // Condition for entering obstacle avoidance state (threshold on one of the four front sensors)
               if ((ds_value[0] > AVOIDANCE_THRESH ||
                    ds_value[7] > AVOIDANCE_THRESH ||
                    ds_value[6] > AVOIDANCE_THRESH ||
                    ds_value[1] > AVOIDANCE_THRESH) && (fsm_state == MIGRATION)){
+                   
+                   printf("LEADER %d avoidance \n", robot_id_u);
               
                   fsm_state = AVOIDANCE;
               }
