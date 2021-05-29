@@ -5,49 +5,8 @@
 /* Description:  Formation with relative positions in a world with           */
 /*               two teams of robots crossing : leader controller            */
 /*                                                                           */
-/* Author:      06-Jun-21 by Tifanny Portela                                 */
 /*****************************************************************************/
 
-
-
-/**
-Analysis of the frame and choices:
-- the world has its x = 0; all the way into the right corner
-Robot 5 (Left):It's original position w.r.t world: PL= {-1.91, 0.0, 0};
-For the right robot (0); orginally at positon PR = {-0.06, 0.0, 0};
-Right now I am taking the pose with the respect to each robot individually;
-this means that pose_x will always be positive (except if going backwards...)
-
-
-Possible mistakes:
-
-#1)  If nan value, I put zero. 
-Problem --> The difference between wheel encoder_r and wheel encoder_prev_r
-becomes huge ! The position is thus greatly over-estimated 
-- quick fix (though debatable). 
-In odometry.c:
-
-QF1 = if (Aleft_enc <0.30 & Aright_enc < 0.3) --> then update the posiiton else not (this value is only superior in the second time step)
-Problem-->Small underestimation. Because I consider it does not move whilst it does 
-
-#2) For now Kalman also implements QF1, else it looks quite good :) 
-
-
-
----------------------- TO DO -----------------------------
-
-- Implmenent migration urge [LAVI] 
-
-Problem 25.05
-
-- Implemented but does not go in desired direction ! AT ALL 
-
-
-The idea is that the left group goes to right origin and vice versa
-- If robot 5 then go to _pose_origin_R
-- If robot 0 then go to _pose_origin_L
-
-**/
 
 
 
@@ -65,19 +24,17 @@ The idea is that the left group goes to right origin and vice versa
 
 #include <webots/robot.h>
 #include <webots/motor.h>
-<<<<<<< HEAD
 #include <webots/gps.h>
 #include <webots/position_sensor.h>
 /*Webots 2018b*/
-=======
->>>>>>> 6da2e62108a5093d4f2afc6224c5494d13e9c3ed
+
 #include <webots/differential_wheels.h>
 #include <webots/distance_sensor.h>
 #include <webots/emitter.h>
 #include <webots/receiver.h>
 
 #define NB_SENSORS	      8	      // Number of distance sensors
-<<<<<<< HEAD
+
 #define MIN_SENS          350     // Minimum sensibility value
 #define MAX_SPEED         800     // Maximum speed
 /*Webots 2018b*/
@@ -87,13 +44,7 @@ The idea is that the left group goes to right origin and vice versa
 #define AVOIDANCE_THRESH    1000  // Threshold above which we enter obstacle avoidance
 #define WHEEL_AXIS        0.057        // Distance between the two wheels in meter
 #define WHEEL_RADIUS            0.020        // Radius of the wheel in meter
-=======
-#define MIN_SENS           350      // Minimum sensibility value
-#define MAX_SPEED          800      // Maximum speed
-#define MAX_SPEED_WEB     6.28    // Maximum speed webots
-#define TIME_STEP	      64	      // Length of time step in [ms] 
-#define AVOIDANCE_THRESH  1000   // Threshold above which we enter obstacle avoidance
->>>>>>> 6da2e62108a5093d4f2afc6224c5494d13e9c3ed
+
 
 // two leaders
 #define LEADER1_ID 0  // leader ID of robots_ID_group1
@@ -105,11 +56,11 @@ The idea is that the left group goes to right origin and vice versa
 #define MIGRATION_WEIGHT  1   // Wheight of attraction towards the common goal. default 0.01/10
 
 /*VARIABLES*/
-// L.
-double migrLeft[2] = {1.85, 0.5};
-//double migrLeft[2] = {-1.91, 0.0};
-double migrRight[2] = {1.85, 0.5};
-//double migrRight[2] = {-0.06, 0.0};
+
+double migrLeft[2] = {1.85, 0};
+
+double migrRight[2] = {1.85, 0};
+
 static pose_t _pose, _odo_enc, _kal_wheel;
 
 // Initial robot position
@@ -119,8 +70,6 @@ static double speed[2];                 // Speed calculated for migration
 
 
 
-
-<<<<<<< HEAD
 /*Webots 2018b*/
 WbDeviceTag dev_gps; // GPS handler 
 WbDeviceTag left_motor; //handler for left wheel of the robot
@@ -128,10 +77,7 @@ WbDeviceTag right_motor; //handler for the right wheel of the robot
 WbDeviceTag left_encoder;//handler for left encoder of the robot
 WbDeviceTag right_encoder;//handler for right encoder of the robot
 /*Webots 2018b*/
-=======
-WbDeviceTag left_motor; //handler for left wheel of the robot
-WbDeviceTag right_motor; //handler for the right wheel of the robot
->>>>>>> 6da2e62108a5093d4f2afc6224c5494d13e9c3ed
+
 
 int e_puck_matrix[2*NB_SENSORS] = {17,29,34,10,8,-38,-56,-76,-72,-58,-36,8,10,36,28,18}; // for obstacle avoidance
 
@@ -439,13 +385,7 @@ int main(){
               
               send_ping();  // sending a ping to other robot, so they can measure their distance to this robot
               process_received_ping_messages();
-              
-<<<<<<< HEAD
-              
-=======
-              //printf("LEADER %d -----> ds_value[0] %d, ds_value[7] %d \n", robot_id_u, ds_value[0],ds_value[7]);
->>>>>>> 6da2e62108a5093d4f2afc6224c5494d13e9c3ed
-             
+
               // Condition for entering obstacle avoidance state (threshold on one of the four front sensors)
               if ((ds_value[0] > AVOIDANCE_THRESH ||
                    ds_value[7] > AVOIDANCE_THRESH ||
