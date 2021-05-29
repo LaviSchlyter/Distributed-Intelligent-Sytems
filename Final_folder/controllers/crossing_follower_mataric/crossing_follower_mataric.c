@@ -25,7 +25,7 @@
 #include <webots/receiver.h>
 
 // ------------------------- Adapt the flock size  ---------------------------
-#define FLOCK_SIZE            2     // Size of flock (2,3,4,5,6 or 7) of one group for Mataric
+#define FLOCK_SIZE            3     // Size of flock (2,3,4,5,6 or 7) of one group for Mataric
 
 // ------------------------- Choose your controller  -------------------------
 #define P   0
