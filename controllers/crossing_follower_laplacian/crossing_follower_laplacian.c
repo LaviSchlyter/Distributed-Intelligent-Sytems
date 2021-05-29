@@ -1,58 +1,60 @@
-/*****************************************************************************/
+/*****************************************************************************************************************************/
 /* File:         crossing_follower_laplacian.c                                 */
-/* Version:      1.0                                                         */
-/* Date:         06-Jun-21                                                   */
-/* Description:  Formation with relative positions in a world where two      */
-/*               teams of robots are crossing: follower controller           */
-/*                                                                           */
-/* Author:      06-Jun-21 by Tifanny Portela                                 */
-/*****************************************************************************/
+/* Version:      1.0                                                           */
+/* Date:         06-Jun-21                                                     */
+/* Description:  Formation with relative positions in a world where two        */
+/*               teams of robots are crossing: follower controller (laplacian) */
+/*                                                                             */
+/* Author:       Tifanny Portela                                               */
+/*****************************************************************************************************************************/
 
 
-/*
- ---------------------------------- README -----------------------------------
- 1) With this controller you can change the number of edges in the graph by changing NB_EDGES (4,8 or 10) for a fixed FLOCK_SIZE of 5
+/* Tunable parameters:
+ 
+ 1) With this controller you can change the number of edges in the graph by changing NB_EDGES (4,8 or 10) for a fixed FLOCK_SIZE of 5. Here are the possible combinations (change the values accordingly at line 42-43):
     - (FLOCK_SIZE = 5, NB_EDGES = 4)
     - (FLOCK_SIZE = 5, NB_EDGES = 8)
     - (FLOCK_SIZE = 5, NB_EDGES = 10)
- 2) With this controller you can change the number of robots in the wedge formation by changing FLOCK_SIZE (3,4 or 5) for a fully connected graph
+ 2) With this controller you can change the number of robots in the formation by changing FLOCK_SIZE (3,4 or 5) for a fully connected graph. Here are the possible combinations (change the values accordingly at line 42-43):
     - (FLOCK_SIZE = 3, NB_EDGES = 3)
     - (FLOCK_SIZE = 4, NB_EDGES = 6)
     - (FLOCK_SIZE = 5, NB_EDGES = 10)
+3) The controller type can be proportionnal (P) or proportional + integral (PI) (change the type accordingly at line 39) */
 
-
- TODO: You can change the formation type : You can change the controller type proportionnal or integral // not sure it works
- TODO: You can change the formation type : column...
-*/
 
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
 
 #include <webots/robot.h>
-/*Webots 2018b*/
 #include <webots/motor.h>
-/*Webots 2018b*/
 #include <webots/differential_wheels.h>
 #include <webots/distance_sensor.h>
 #include <webots/emitter.h>
 #include <webots/receiver.h>
 
+// ---------------------------------------- Choose the controller's type ----------------------------------------
+#define P   0
+#define PI  1
+#define CONTROLLER_TYPE P
+
+// ------------------------- Choose the flock size and the number of edges of the graph -------------------------
+#define FLOCK_SIZE  3  // Size of flock (3,4 or 5)
+#define NB_EDGES    3  // number of edges (3,4,6,8 or 10)
+
 #define NB_SENSORS          8      // Number of distance sensors
 #define MIN_SENS          350      // Minimum sensibility value
 #define MAX_SPEED         800      // Maximum speed
-/*Webots 2018b*/
 #define MAX_SPEED_WEB      6.28    // Maximum speed webots
-/*Webots 2018b*/
 
-#define AVOIDANCE_THRESH    1800  // Threshold above which we enter obstacle avoidance
+#define AVOIDANCE_THRESH    1800  // Threshold above which the robot enters obstacle avoidance state
 #define MAX_FLOCK_SIZE      5     // Maximum size of flock
 #define MAX_NB_EDGES        10    // Maximum number of edges (fully connected)
-#define TIME_STEP          64     // [ms] Length of time step
+#define TIME_STEP           64    // Length of time step in [ms]
 
 #define AXLE_LENGTH         0.052    // Distance between wheels of robot (meters)
-#define WHEEL_RADIUS        0.0205    // Wheel radius (meters)
-#define DELTA_T            0.064    // Timestep (seconds)
+#define WHEEL_RADIUS        0.0205   // Wheel radius (meters)
+#define DELTA_T             0.064    // Timestep (seconds)
 
 //boolean values
 #define TRUE 1
@@ -66,36 +68,14 @@
 #define AVOIDANCE 0
 #define FORMATION 1
 
-// ------------------------- choose your formation among 0,1,2,3 -------------------------
-#define FORMATION_TYPE 0
-// different formations
-#define WEDGE   0
-#define COLUMN  1
-#define LINE    2
-#define DIAMOND 3
-
-// ------------------------- choose your controller among 0,1 -------------------------
-
-#define CONTROLLER_TYPE 0
-// different formations
-#define P   0
-#define PI  1
-
-// update according to the list given above (lines 14 -20)
-#define FLOCK_SIZE  5  // Size of flock (3,4 or 5)
-#define NB_EDGES    10  // number of edges (3,4,6,8 or 10)
-
-
-
-/*Webots 2018b*/
 WbDeviceTag left_motor;      //handler for left wheel of the robot
 WbDeviceTag right_motor;     //handler for the right wheel of the robot
-WbDeviceTag ds[NB_SENSORS];     //Handle for the infrared distance sensors
-WbDeviceTag receiver;         //Handle for the receiver node
-WbDeviceTag emitter;         //Handle for the emitter node
+WbDeviceTag ds[NB_SENSORS];  //handler for the infrared distance sensors
+WbDeviceTag receiver;        //handler for the receiver node
+WbDeviceTag emitter;         //handler for the emitter node
 
 
-int fsm_state = 0;                 // finite state machine's state
+int fsm_state;                     // finite state machine's state
 int robot_id_u;                    // unique robot ID
 int corresponding_robot_ID;        // Corresponding robot ID in group 1 for robots of group 2
 char* robot_name;
@@ -104,18 +84,11 @@ char* robot_name;
 float integrator;
 float prev_delta_bearing;
 
+float meas_range_laplacian[MAX_FLOCK_SIZE];   // measured range for robot i to every robot j
+float meas_bearing_laplacian[MAX_FLOCK_SIZE]; // measured bearing for robot i to every robot j
 
-float target_range[MAX_FLOCK_SIZE][MAX_FLOCK_SIZE]; // target range between the members of the swarm defining the formation
-
-float meas_range_laplacian[MAX_FLOCK_SIZE];   // measured range LAPLACIAN for robot i to every robot j : directed graph e_ij != e_ji
-float meas_bearing_laplacian[MAX_FLOCK_SIZE]; // measured bearing LAPLACIAN for robot i to every robot j: directed graph b_ij != b_ji
-
-//enlever?
-int e_puck_matrix[16] = {17,29,34,10,8,-38,-56,-76,-72,-58,-36,8,10,36,28,18}; // for obstacle avoidance
-
-// ----------------------------------------------------------------
-// ------------------------ LAPLACIAN ----------------------------
-// ----------------------------------------------------------------
+// Weight matrix for obstacle avoidance
+int e_puck_matrix[2*NB_SENSORS] = { 17 , 29 , 34 , 10 , 8 , -38 , -56 , -76 , -72 , -58 , -36 , 8 , 10 , 36 , 28 , 18 };
 
 // Incidence matrix
 float I[FLOCK_SIZE][NB_EDGES] = {{0.0}};
@@ -126,33 +99,26 @@ float L[FLOCK_SIZE][FLOCK_SIZE] = {{0.0}};
 // Cardinality matrix
 float Cardinality[FLOCK_SIZE][FLOCK_SIZE] = {{0.0}};
 
-// --------------------------------------------------------------------------------------------------------------------------------
-// --- For first fonctionnality of the code: fix the number of nodes (flock_size = 5) and vary the number of edges (4,8 or 10) ----
-// --------------------------------------------------------------------------------------------------------------------------------
 
-// Incidence matrix: Wedge formation:  5 nodes - 4 edges (1 neighbour directional (like Mataric))
-float I_5nodes_4edges[MAX_FLOCK_SIZE][4] = {{   0.0    ,   1.0   ,   1.0  ,   0.0  },
-                                            {   1.0    ,  -1.0   ,   0.0  ,   0.0  },
-                                            {   0.0    ,   0.0   ,  -1.0  ,   1.0  },
-                                            {  -1.0    ,   0.0   ,   0.0  ,   0.0  },
-                                            {   0.0    ,   0.0   ,   0.0  ,  -1.0  }};
+// Incidence matrix: 3 nodes - 3 edges (fully connected)
+float I_3nodes_3edges[3][3] = {{   1.0    ,   1.0   ,   0.0  },
+                               {  -1.0    ,   0.0   ,  -1.0  },
+                               {   0.0    ,  -1.0   ,   1.0  }};
 
-// Incidence matrix: Wedge formation:  5 nodes - 8 edges (2-3 neighbours directional)
-float I_5nodes_8edges[MAX_FLOCK_SIZE][8] = {{   0.0    ,   1.0   ,   1.0  ,   0.0  ,   0.0    ,   0.0   ,   0.0  ,  -1.0  },
-                                            {   1.0    ,  -1.0   ,   0.0  ,   0.0  ,   0.0    ,   0.0   ,  -1.0  ,   0.0  },
-                                            {   0.0    ,   0.0   ,  -1.0  ,   1.0  ,   0.0    ,   1.0   ,   1.0  ,   0.0  },
-                                            {  -1.0    ,   0.0   ,   0.0  ,   0.0  ,   1.0    ,  -1.0   ,   0.0  ,   0.0  },
-                                            {   0.0    ,   0.0   ,   0.0  ,  -1.0  ,  -1.0    ,   0.0   ,   0.0  ,   1.0  }};
-                                   
-// Incidence matrix: Wedge formation:  5 nodes - 10 edges (4 neighbours directional)
-float I_5nodes_10edges[MAX_FLOCK_SIZE][10] ={{   0.0    ,   1.0   ,   1.0  ,   0.0  ,   0.0    ,   0.0   ,   0.0  ,  1.0  ,   0.0  ,   1.0  },
+// Incidence matrix: 4 nodes - 6 edges (fully connected)
+float I_4nodes_6edges[4][6] = {{   0.0    ,   1.0   ,   1.0  ,   0.0  ,   0.0    ,  -1.0   },
+                               {   1.0    ,  -1.0   ,   0.0  ,   0.0  ,  -1.0    ,   0.0   },
+                               {   0.0    ,   0.0   ,  -1.0  ,   1.0  ,   1.0    ,   0.0   },
+                               {  -1.0    ,   0.0   ,   0.0  ,  -1.0  ,   0.0    ,   1.0   }};
+   
+// Incidence matrix: 5 nodes - 10 edges (fully connected)
+float I_5nodes_10edges[MAX_FLOCK_SIZE][10] ={{   0.0    ,   1.0   ,   1.0  ,   0.0  ,   0.0    ,   0.0   ,   0.0  ,   1.0  ,   0.0  ,   1.0  },
                                              {   1.0    ,  -1.0   ,   0.0  ,   0.0  ,   0.0    ,   0.0   ,  -1.0  ,   0.0  ,   1.0  ,   0.0  },
                                              {   0.0    ,   0.0   ,  -1.0  ,   1.0  ,   0.0    ,   1.0   ,   1.0  ,   0.0  ,   0.0  ,   0.0  },
-                                             {  -1.0    ,   0.0   ,   0.0  ,   0.0  ,   1.0    ,  -1.0   ,   0.0  ,   0.0  ,   0.0  ,   -1.0  },
-                                             {   0.0    ,   0.0   ,   0.0  ,  -1.0  ,  -1.0    ,   0.0   ,   0.0  ,   -1.0  ,  -1.0  ,   0.0  }};
+                                             {  -1.0    ,   0.0   ,   0.0  ,   0.0  ,   1.0    ,  -1.0   ,   0.0  ,   0.0  ,   0.0  ,  -1.0  },
+                                             {   0.0    ,   0.0   ,   0.0  ,  -1.0  ,  -1.0    ,   0.0   ,   0.0  ,  -1.0  ,  -1.0  ,   0.0  }};
 
-           
-// Cardinality matrix - 1 neighbour
+// Cardinality matrix - 1-2 neighbours
 int C_1neighbour[MAX_FLOCK_SIZE][MAX_FLOCK_SIZE] = {{   0    ,   1   ,   1  ,   0  ,   0   },
                                                     {   1    ,   0   ,   0  ,   1  ,   0   },
                                                     {   1    ,   0   ,   0  ,   0  ,   1   },
@@ -173,58 +139,12 @@ int C_4neighbour[MAX_FLOCK_SIZE][MAX_FLOCK_SIZE] = {{   0    ,   1   ,   1  ,   
                                                     {   1    ,   1   ,   1  ,   0  ,   1   },
                                                     {   1    ,   1   ,   1  ,   1  ,   0   }};
 
-
-// ---------------------------------------------------------------------------------------------------------------------------------------------
-// ----------- For second fonctionnality of the code: vary the number of nodes (FLOCK_SIZE = 3,4 or 5) for a fully connected graph -------------
-// ---------------------------------------------------------------------------------------------------------------------------------------------
-
-// Incidence matrix: Wedge formation:  3 nodes - 3 edges (fully connected)
-float I_3nodes_3edges[3][3] = {{   1.0    ,   1.0   ,   0.0  },
-                               {  -1.0    ,   0.0   ,  -1.0  },
-                               {   0.0    ,  -1.0   ,   1.0  }};
-
-// Incidence matrix: Wedge formation:  4 nodes - 6 edges (fully connected)
-float I_4nodes_6edges[4][6] = {{   0.0    ,   1.0   ,   1.0  ,   0.0  ,   0.0    ,  -1.0   },
-                                {   1.0    ,  -1.0   ,   0.0  ,   0.0  ,  -1.0    ,   0.0   },
-                                {   0.0    ,   0.0   ,  -1.0  ,   1.0  ,   1.0    ,   0.0   },
-                                {  -1.0    ,   0.0   ,   0.0  ,  -1.0  ,   0.0    ,   1.0   }};
-
-
-// --------------------------------------------------------------------------------------------------------------------------------
-// --------------------------------------------------------- Formations -----------------------------------------------------------
-// --------------------------------------------------------------------------------------------------------------------------------
-
-// ---------------- Wedge -----------------
-// Only formation for which we can change  the flock  size
-float wedge_range[MAX_FLOCK_SIZE][MAX_FLOCK_SIZE] =   {{   0.0    ,   0.1414  ,   0.1414  ,   0.2828  ,   0.2828  },
+// target ranges between flock memebers
+float target_range[MAX_FLOCK_SIZE][MAX_FLOCK_SIZE] =  {{   0.0    ,   0.1414  ,   0.1414  ,   0.2828  ,   0.2828  },
                                                        {  0.1414  ,    0.0    ,    0.2    ,   0.1414  ,   0.3162  },
                                                        {  0.1414  ,    0.2    ,    0.0    ,   0.3162  ,   0.1414  },
                                                        {  0.2828  ,   0.1414  ,   0.3162  ,    0.0    ,    0.4    },
                                                        {  0.2828  ,   0.3162  ,   0.1414  ,    0.4    ,    0.0    }};
-
-
-// CHANGER OU ENLEVER
-// ---------------- Column -----------------
-float column_range[5][5] =  {{   0.0    ,    0.1    ,    0.1    ,    0.2    ,    0.2    },
-                             {   0.1    ,    0.0    ,    0.2    ,    0.1    ,    0.3    },
-                             {   0.1    ,    0.2    ,    0.0    ,    0.3    ,    0.1    },
-                             {   0.2    ,    0.1    ,    0.3    ,    0.0    ,    0.4    },
-                             {   0.2    ,    0.3    ,    0.1    ,    0.4    ,    0.0    }};
-
-// ---------------- Line ----------------- CHANGER pas le bon neighbor
-float line_range[5][5] =    {{   0.0    ,    0.1    ,    0.2    ,    0.3    ,    0.4    },
-                             {   0.1    ,    0.0    ,    0.1    ,    0.2    ,    0.3    },
-                             {   0.2    ,    0.1    ,    0.0    ,    0.1    ,    0.2    },
-                             {   0.3    ,    0.2    ,    0.1    ,    0.0    ,    0.1    },
-                             {   0.4    ,    0.3    ,    0.2    ,    0.1    ,    0.0    }};
-
-// ---------------- Diamond ----------------- CHNAGER
-float diamond_range[5][5] = {{   0.0    ,   M_PI    ,   M_PI    ,   M_PI    ,   M_PI    },
-                             {   M_PI   ,    0.0    ,   M_PI    ,   M_PI    ,   M_PI    },
-                             {   0.1    ,    0.2    ,    0.0    ,   M_PI    ,   M_PI    },
-                             {   0.2    ,    0.1    ,    0.3    ,    0.0    ,   M_PI    },
-                             {   0.2    ,    0.3    ,    0.1    ,    0.4    ,    0.0    }};
-
 
 /*
  * Reset the robot's devices and get its ID
@@ -274,58 +194,36 @@ void init_laplacian_matrices(void){
     
     // First functionallity of this code: fix the number of nodes (flock_size = 5) and vary the number of edges (4,8 or 10)
     if (MAX_FLOCK_SIZE == FLOCK_SIZE){
-        //printf("First functionality \n");
-          if (NB_EDGES == 4){  // 1 neighbour
-              for(i=0; i<MAX_FLOCK_SIZE; i++) {
-                  for(j=0; j<NB_EDGES; j++) {
-                      I[i][j] = I_5nodes_4edges[i][j];
-                  }
-                      
-                  for(k=0; k<MAX_FLOCK_SIZE; k++) {
-                      Cardinality[i][k] = C_1neighbour[i][k];
-                  }
-               }
-           }
-    
-          if (NB_EDGES == 8){ // 2-3 neighbours
-              for(i=0; i<MAX_FLOCK_SIZE; i++) {
-                  for(j=0; j<NB_EDGES; j++) {
-                      I[i][j] = I_5nodes_8edges[i][j];
-                  }
-                  
-                  for(k=0; k<MAX_FLOCK_SIZE; k++) {
-                      Cardinality[i][k] = C_2neighbour[i][k];
-                  }
-              }
-          }
-        
-          if (NB_EDGES == 10){  // 4 neighbours
-              for(i=0; i<MAX_FLOCK_SIZE; i++) {
-                  for(j=0; j<NB_EDGES; j++) {
-                      I[i][j] = I_5nodes_10edges[i][j];
-                  }
-                  
-                  for(k=0; k<MAX_FLOCK_SIZE; k++) {
-                      Cardinality[i][k] = C_4neighbour[i][k];
-                  }
-              }
-          }
+        for(i=0; i<MAX_FLOCK_SIZE; i++) {
+            for(j=0; j<NB_EDGES; j++) {
+                I[i][j] = I_5nodes_10edges[i][j];
+            }
+            for(k=0; k<MAX_FLOCK_SIZE; k++) {
+                 if (NB_EDGES == 4){ // 1-2 neighbours
+                     Cardinality[i][k] = C_1neighbour[i][k];
+                 }
+                 else if (NB_EDGES == 8){ // 2-3 neighbours
+                     Cardinality[i][k] = C_2neighbour[i][k];
+                 }
+                 else if (NB_EDGES == 10){ // 4 neighbours
+                     Cardinality[i][k] = C_4neighbour[i][k];
+                 }
+                 else{
+                     printf("This combination (FLOCK_SIZE = %d, NB_EDGES = %d) is not possible\n",FLOCK_SIZE, NB_EDGES);
+                 }
+            }
+        }
     }
     else{ // Second functionallity of this code: vary the number of nodes (3,4 or 5) for a fully connected graph (the case 5 is handeld above)
-        
-        //printf("Second functionality \n");
-        
         for(i=0; i<FLOCK_SIZE; i++) {
             for(k=0; k<FLOCK_SIZE; k++) {
                 Cardinality[i][k] = C_4neighbour[i][k];
             }
-            
             if (FLOCK_SIZE == 3){
                for(j=0; j<3; j++) {
                     I[i][j] = I_3nodes_3edges[i][j];
                }
             }
-            
             if (FLOCK_SIZE == 4){
                for(j=0; j<6; j++) {
                     I[i][j] = I_4nodes_6edges[i][j];
@@ -334,50 +232,11 @@ void init_laplacian_matrices(void){
         }
     }
    
-    
     // Init weight matrix - identity matrix
     for(i=0;i<NB_EDGES;i++){
         for(j=0;j<NB_EDGES;j++){
             if (i==j){
                 W[i][j] = 1.0;
-            }
-        }
-    }
-}
-
-/*
- * Initialiaze the matrices defining the target range and bearing depending on the wanted formation
- */
-
-void init_formation_matrices(void){
-
-    int i,j;
-    
-    if (FORMATION_TYPE == WEDGE){
-        for(i=0; i<MAX_FLOCK_SIZE; i++) {
-            for(j=0; j<MAX_FLOCK_SIZE; j++) {
-                target_range[i][j] = wedge_range[i][j];
-            }
-        }
-    }
-    else if (FORMATION_TYPE == COLUMN){
-        for(i=0; i<MAX_FLOCK_SIZE; i++) {
-            for(j=0; j<MAX_FLOCK_SIZE; j++) {
-                target_range[i][j] = column_range[i][j];
-            }
-        }
-    }
-    else if (FORMATION_TYPE == LINE){
-        for(i=0; i<MAX_FLOCK_SIZE; i++) {
-            for(j=0; j<MAX_FLOCK_SIZE; j++) {
-                target_range[i][j] = line_range[i][j];
-            }
-        }
-    }
-    else if (FORMATION_TYPE == DIAMOND){
-        for(i=0; i<MAX_FLOCK_SIZE; i++) {
-            for(j=0; j<MAX_FLOCK_SIZE; j++) {
-                target_range[i][j] = diamond_range[i][j];
             }
         }
     }
@@ -407,8 +266,6 @@ int corresponding_robot_ID_in_group1(int robot_id){
     else if (robot_id == 8){
         corresponding_robot_ID = 4;
     }
-    
-    
     return corresponding_robot_ID;  
 }
 
@@ -423,11 +280,8 @@ bool i_is_in_the_list_for_reduced_flock_size(int index){
     
        in_the_list = FALSE;
     }
-    
     return in_the_list;
 }
-
-
 
 
 /*
@@ -437,10 +291,8 @@ bool robotID_in_group1(void){
 
    bool is_in_group1 = FALSE;
    if (robot_id_u < FLOCK_SIZE){
-   
      is_in_group1 = TRUE;
    }
-   
    return is_in_group1;
 }
 
@@ -485,8 +337,6 @@ void process_received_ping_messages(void) {
           }
           
           friend_robot_id = (int)(inbuffer[5]-'0');  // since the name of the sender is in the received message.
-          //printf("friend_robot_id %d\n", friend_robot_id);
-        
         
           // in group 1 and it's one of my friends (ID 0 to 4)
           if ((robotID_in_group1()) && (friend_robot_id <= 4)) {
@@ -505,25 +355,21 @@ void process_received_ping_messages(void) {
 }
 
 /*
- * Keep given int numbers within interval {-limit, limit} and reshape both numbers to keep their relative differences
- * If above limit, set biggest number to limit and the smallest number to limit - their difference
- */
+* Keep numbers within interval {-limit, limit} and rescale both numbers to keep their relative difference unchanged.
+* If the number is above the limit, set the biggest number to the limit and the smallest number to (limit - their difference)
+*/
 void limit_and_rescale(int *number1, int *number2, int limit) {
 
     int delta;
     
     if ((*number1 > 0) && (*number2 > 0)){
-    
         if (*number1 > *number2){
-
             delta = *number1 - *number2;
             if (*number1 > limit){
                 *number1 = limit;
                 *number2 = limit-delta;
             }
-        
         }else{
-         
             delta = *number2 - *number1;
             if (*number2 > limit){
                 *number2 = limit;
@@ -532,9 +378,7 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
         }
     }
     else if ((*number1 > 0) && (*number2 < 0)){
-    
         delta = *number1 - *number2;
-    
         if ((*number1 >= limit) && (*number2 <= -limit)){
           *number1 = limit;
           *number2 = -limit;
@@ -550,9 +394,7 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
           
     }
     else if ((*number1 < 0) && (*number2 > 0)){
-    
         delta = *number2 - *number1;
-    
         if ((*number1 <= -limit) && (*number2 >= limit)){
           *number1 = -limit;
           *number2 = limit;
@@ -568,17 +410,14 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
       
     }
     else if ((*number1 < 0) && (*number2 < 0)){
-    
         if (*number1 < *number2){
-         
             delta = *number2 - *number1;
             if (*number1 < -limit){
                 *number1 = -limit;
                 *number2 = -limit+delta;
             }
-        
-        }else{
-         
+        }
+        else{
             delta = *number1 - *number2;
             if (*number2 < -limit){
                 *number1 = -limit+delta;
@@ -588,10 +427,9 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
     }
 }
 
-
 /*
- * Calculates the weight of the integral part of the controller (allowing the intagrator to
- * discharge when the leader and the followers are not aligned
+ * Calculates the weight of the integral part of the controller (allowing the integrator to
+ * discharge when the leader and the followers are not aligned)
 */
 float sigmoid(float delta_bearing){
   
@@ -642,7 +480,6 @@ void range_bearing_to_command(int *msl, int *msr){
         
              card_nb += Cardinality[index][i];
              if (Cardinality[index][i] == 1){
-                 //printf("Robot ID %d (index %d) passed cardinality with robot %d \n",robot_id_u, index, i);
                  e_xi += - (meas_range_laplacian[i] - target_range[index][i])*L[index][i]*cosf(meas_bearing_laplacian[i]);
                  e_yi += - (meas_range_laplacian[i] - target_range[index][i])*L[index][i]*sinf(meas_bearing_laplacian[i]);
              }
@@ -652,16 +489,13 @@ void range_bearing_to_command(int *msl, int *msr){
     delta_range = sqrt(pow(e_xi,2) + pow(e_yi,2));
     delta_bearing = atan2f(e_yi, e_xi);
           
-    // proportional controller - Falconi_Riccardo_Tesi
-    if (CONTROLLER_TYPE == P){
+    if (CONTROLLER_TYPE == P){  // Proportional controller
         u = Ku*delta_range;// Compute forward control
         w = Kw*delta_bearing;// Compute rotational control
     }
     
-    // proportional + integral controller - ---------------------enlever?------------------------
-    else if (CONTROLLER_TYPE == PI){
+    else if (CONTROLLER_TYPE == PI){ // Proportional + Integral controller
         integrator = integrator + DELTA_T/2.0*(prev_delta_bearing*sigmoid(prev_delta_bearing) + delta_bearing*sigmoid(delta_bearing));
-        //u = Ku*delta_range*cosf(delta_bearing) + Ki*integrator;// Compute forward control
         u = Ku*delta_range+ Ki*integrator;// Compute forward control
         w = Kw*delta_bearing;// Compute rotational control
         prev_delta_bearing = delta_bearing;
@@ -701,94 +535,26 @@ void compute_laplacian(void){
   }
 
 }
-
-/*
- * ENLEVER
- *
-*/
-
-void print_laplacian(void){
-
-  int i,j;
-  
-  printf("Incidence\n");
-  for(i = 0; i < FLOCK_SIZE; i++){
-      for(j = 0; j < NB_EDGES; j++){
-          
-          printf("%f, ", I[i][j]);
-      }
-      printf("\n");
-  }
-  
-  printf("Weight\n");
-  for(i = 0; i < NB_EDGES; i++){
-      for(j = 0; j < NB_EDGES; j++){
-          
-          printf("%f, ", W[i][j]);
-      }
-      printf("\n");
-  }
-
-  printf("Laplacian\n");
-  for(i = 0; i < FLOCK_SIZE; i++){
-      for(j = 0; j < FLOCK_SIZE; j++){
-          
-          printf("%f, ", L[i][j]);
-      }
-      printf("\n");
-  }
-  
-  printf("Cardinality\n");
-  for(i = 0; i < FLOCK_SIZE; i++){
-      for(j = 0; j < FLOCK_SIZE; j++){
-          
-          printf("%f, ", Cardinality[i][j]);
-      }
-      printf("\n");
-  }
-  
-   printf("target range \n");
-  for(i = 0; i < FLOCK_SIZE; i++){
-      for(j = 0; j < FLOCK_SIZE; j++){
-          
-          printf("%f, ", target_range[i][j]);
-      }
-      printf("\n");
-  }
-  
-}
                  
 
 // the main function
 int main(){
        
     int msl = 0;                    // Left wheel speed
-    int msr = 0;            // Right wheel speed
+    int msr = 0;                    // Right wheel speed
     float msl_w, msr_w;
     int bmsl, bmsr, sum_sensors;    // Braitenberg parameters
     int i;                          // Loop counter
     int ds_value[NB_SENSORS];       // Array for the distance sensor readings
     int max_sens;                   // Store highest sensor value
 
-    reset();                    // Resetting the robot
-    
-    
-    // Initialize the range and bearing target matrices according to the chosen formation type
-    init_formation_matrices();
-     
-    // Initialize the matrices (C,I,W)
-    init_laplacian_matrices();
-    
-    // Compute
-    compute_laplacian();
-    
-    // initial state: formation
-    fsm_state = FORMATION;
-    
-    //print_laplacian();
+    reset();                        // Resetting the robot
+    init_laplacian_matrices();      // Initialize the matrices (C,I,W)
+    compute_laplacian();            // Compute laplacian
+
+    fsm_state = FORMATION;          // initial FSM's state: formation
        
-    // Forever
-    for(;;){
+    for(;;){// Forever
         
         bmsl = 0; bmsr = 0;
         sum_sensors = 0;
@@ -813,27 +579,19 @@ int main(){
           process_received_ping_messages();
         
          // Condition for entering obstacle avoidance state (threshold on one of the four front sensors)
-                          
-         //if (robot_id_u == 4){printf("ds[0]: %d ---- ds[7]: %d\n", ds_value[0],ds_value[7]);}
          if ((ds_value[0] > AVOIDANCE_THRESH ||
               ds_value[7] > AVOIDANCE_THRESH ||
               ds_value[6] > AVOIDANCE_THRESH ||
               ds_value[1] > AVOIDANCE_THRESH) && (fsm_state == FORMATION)){
-                              
             fsm_state = AVOIDANCE;
-            printf("%d ------------------ AVOIDANCE ---------------- \n", robot_id_u);
          }
          if (fsm_state == FORMATION){ //formation state --- do only formation
-                                     
-            //formation command
-            range_bearing_to_command(&msl, &msr);
+            range_bearing_to_command(&msl, &msr);//formation command
          }
          else{ //avoidance state --- do only braitenberg
-                                     
             msl = bmsl;
             msr = bmsr;
         }
-        
         limit_and_rescale(&msl, &msr, MAX_SPEED);
          
         // Set speed
@@ -848,7 +606,7 @@ int main(){
            fsm_state = FORMATION;
         }
 
-        // Continue one step --> on change de robot!
+        // Continue one step
         wb_robot_step(TIME_STEP);
     }
 }

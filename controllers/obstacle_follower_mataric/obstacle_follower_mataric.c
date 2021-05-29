@@ -1,77 +1,55 @@
-/*****************************************************************************/
+/**************************************************************************************************************************/
 /* File:         obstacle_follower_mataric.c                                 */
 /* Version:      1.0                                                         */
 /* Date:         06-Jun-21                                                   */
 /* Description:  Formation with relative positions in a world with           */
 /*               obstacles : follower controller (mataric)                   */
 /*                                                                           */
-/* Author:      06-Jun-21 by Tifanny Portela                                 */
-/*****************************************************************************/
+/* Author:       Tifanny Portela                                             */
+/**************************************************************************************************************************/
 
-
-
-/*
-  ---------------------------------- README -----------------------------------
-  With this controller you can change the number of robots in the wedge formation by changing FLOCK_SIZE (2,3,4,5,6 or 7) -- change the world accordingly
-  You can change the controller type proportionnal or integral
- 
-  TODO: You can change the formation type : column...
- */
+/* Tunable parameters:                                                                                                      */
+/* 1) This controller works for a FLOCK_SIZE of size 2,3,4,5,6 or 7 (change the value accordingly at line 30)               */
+/* 2) The controller type can be proportionnal (P) or proportional + integral (PI) (change the type accordingly at line 35) */
 
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
 
 #include <webots/robot.h>
-/*Webots 2018b*/
 #include <webots/motor.h>
-/*Webots 2018b*/
 #include <webots/differential_wheels.h>
 #include <webots/distance_sensor.h>
 #include <webots/emitter.h>
 #include <webots/receiver.h>
 
-#define NB_SENSORS	      8	  // Number of distance sensors
+
+// ------------------------- Adapt the flock size  ---------------------------
+#define FLOCK_SIZE            3     // Size of flock (2,3,4,5,6 or 7) of one group for Mataric
+
+// ------------------------- Choose your controller  -------------------------
+#define P   0
+#define PI  1
+#define CONTROLLER_TYPE PI
+
+#define NB_SENSORS	       8	  // Number of distance sensors
 #define MIN_SENS          350     // Minimum sensibility value
 #define MAX_SPEED         800     // Maximum speed
-/*Webots 2018b*/
-#define MAX_SPEED_WEB      6.28    // Maximum speed webots
-/*Webots 2018b*/
-#define FLOCK_SIZE	      4 // Size of flock (2,3,4,5,6 or 7) of one group for Mataric 
-#define MAX_FLOCK_SIZE      7  // Maximum size of flock
+#define MAX_SPEED_WEB      6.28   // Maximum speed webots
+#define MAX_FLOCK_SIZE      7     // Maximum size of flock
 
-#define TIME_STEP	  64	  // [ms] Length of time step
-#define AVOIDANCE_THRESH    1800  // Threshold above which we enter obstacle avoidance
+#define TIME_STEP	        64	  // Length of time step in [ms]
+#define AVOIDANCE_THRESH   1800   // Threshold above which we enter obstacle avoidance state
+#define FORMATION_THRESH    70    // Threshold under which we enter formation state
 
-#define AXLE_LENGTH 		0.052	// Distance between wheels of robot (meters)
-#define WHEEL_RADIUS		0.0205	// Wheel radius (meters)
-#define DELTA_T			0.064	// Timestep (seconds)
-
-#define LEADER_ID 0
+#define AXLE_LENGTH 	  0.052	  // Distance between wheels of robot (meters)
+#define WHEEL_RADIUS	  0.0205  // Wheel radius (meters)
+#define DELTA_T			  0.064	  // Timestep (seconds)
 
 //States of FSM
 #define AVOIDANCE 0
 #define FORMATION 1
 
-
-// ------------------------- choose your formation among 0,1,2,3 -------------------------
-#define FORMATION_TYPE 0
-// different formations 
-#define WEDGE   0
-#define COLUMN  1
-#define LINE    2
-#define DIAMOND 3
-
-// ------------------------- choose your controller among 0,1 -------------------------
-
-#define CONTROLLER_TYPE 0
-
-#define P   0
-#define PI  1
-#define TRESH_DELTA_BEARING  25  // in degrees -- if delta_bearing above threshold : first turn, then move forward
-#define TRESH_DELTA_RANGE    0.5 //
-
-/*Webots 2018b*/
 WbDeviceTag left_motor;      //handler for left wheel of the robot
 WbDeviceTag right_motor;     //handler for the right wheel of the robot
 WbDeviceTag ds[NB_SENSORS];	 //Handle for the infrared distance sensors
@@ -87,89 +65,21 @@ char* robot_name;
 float integrator;
 float prev_delta_bearing;
 
-float measured_range_bearing[2]; // measured range and bearing to your friend // MATARIC
-float target_range[FLOCK_SIZE][FLOCK_SIZE]; // target range between the members of the swarm defining the formation 
-float target_bearing[FLOCK_SIZE][FLOCK_SIZE]; // target bearing between the members of the swarm defining the formation
+float measured_range_bearing[2]; // measured range and bearing to your friend
 
-int e_puck_matrix[16] = {17,29,34,10,8,-38,-56,-76,-72,-58,-36,8,10,36,28,18}; // for obstacle avoidance
+// Wedge formation range and bearing targets for each follower robot
+float target_bearing;
+float target_range = 0.1414;
+float target_bearing_followers[MAX_FLOCK_SIZE - 1] = { M_PI/4 , 7*M_PI/4 , M_PI/4 , 7*M_PI/4 ,  M_PI/4 ,  7*M_PI/4 };
 
-// ---------------------------------------------------------------- 
-// ------------------------ Formations ---------------------------- 
-// ---------------------------------------------------------------- 
-
-// ---------------- Wedge -----------------
-// Only formation for which we can change  the flock  size
-float wedge_range[MAX_FLOCK_SIZE][MAX_FLOCK_SIZE] =   {{   0.0    ,   0.1414  ,   0.1414  ,   0.2828  ,   0.2828  ,   0.3162  ,   0.3162  },
-                                                       {  0.1414  ,    0.0    ,    0.2    ,   0.1414  ,   0.3162  ,   0.2828  ,     0.2   },
-                                                       {  0.1414  ,    0.2    ,    0.0    ,   0.3162  ,   0.1414  ,    0.2    ,   0.2828  },
-                                                       {  0.2828  ,   0.1414  ,   0.3162  ,    0.0    ,    0.4    ,   0.3162  ,   0.1414  },
-                                                       {  0.2828  ,   0.3162  ,   0.1414  ,    0.4    ,    0.0    ,   0.1414  ,   0.3162  },
-                                                       {  0.3162  ,   0.2828  ,    0.2    ,   0.3162  ,   0.1414  ,    0.0    ,     0.2   },
-                                                       {  0.3162  ,    0.2    ,   0.2828  ,   0.1414  ,   0.3162  ,    0.2    ,     0.0   }};
-
-float wedge_bearing[MAX_FLOCK_SIZE][MAX_FLOCK_SIZE] = {{   0.0    ,  5*M_PI/4 ,  3*M_PI/4 ,  5*M_PI/4 ,  3*M_PI/4 ,   2.8198  ,   3.4633  },
-                                                       {  M_PI/4  ,    0.0    ,  M_PI/2   ,  5*M_PI/4 ,   1.8925  ,  3*M_PI/4 ,    M_PI   },
-                                                       { 7*M_PI/4 ,  3*M_PI/2 ,    0.0    ,   4.3906  ,  3*M_PI/4 ,    M_PI   ,  5*M_PI/4 },
-                                                       {  M_PI/4  ,   M_PI/4  ,   1.249   ,    0.0    ,   M_PI/2  ,   1.8925  ,  7*M_PI/4 },
-                                                       { 7*M_PI/4 ,   5.0341  , 7*M_PI/4  ,  3*M_PI/2 ,    0.0    ,  5*M_PI/4 ,   4.3906  },
-                                                       {  5.9614  ,  7*M_PI/4 ,    0.0    ,   5.0341  ,   M_PI/4  ,    0.0    ,  3*M_PI/2 },
-                                                       {  0.3218  ,    0.0    ,  M_PI/4   ,  7*M_PI/4 ,   1.249   ,   M_PI/2  ,    0.0    }};
-
-
-
-// -------------------------------------------------------------------------------
-// ------------------------ CHANGER OU ENLEVER ----------------------------
-// -------------------------------------------------------------------------
-// ---------------- Column -----------------
-float column_range[5][5] =  {{   0.0    ,    0.1    ,    0.1    ,    0.2    ,    0.2    },
-                                               {   0.1    ,    0.0    ,    0.2    ,    0.1    ,    0.3    },
-                                               {   0.1    ,    0.2    ,    0.0    ,    0.3    ,    0.1    },
-                                               {   0.2    ,    0.1    ,    0.3    ,    0.0    ,    0.4    },
-                                               {   0.2    ,    0.3    ,    0.1    ,    0.4    ,    0.0    }};
-
-float column_bearing[5][5] = {{   0.0    ,  3*M_PI/2 ,   M_PI/2  ,  3*M_PI/2 ,   M_PI/2  },
-                                                {  M_PI/2  ,    0.0    ,   M_PI/2  ,  3*M_PI/2 ,   M_PI/2  },
-                                                { 3*M_PI/2 ,  3*M_PI/2 ,    0.0    ,  3*M_PI/2 ,   M_PI/2  },
-                                                {  M_PI/2  ,   M_PI/2  ,   M_PI/2  ,    0.0    ,   M_PI/2  },
-                                                { 3*M_PI/2 , 3*M_PI/2  , 3*M_PI/2  ,  3*M_PI/2 ,    0.0    }};
-
-// ---------------- Line ----------------- CHANGER pas le bon neighbor
-float line_range[5][5] =    {{   0.0    ,    0.1    ,    0.2    ,    0.3    ,    0.4    },
-                                               {   0.1    ,    0.0    ,    0.1    ,    0.2    ,    0.3    },
-                                               {   0.2    ,    0.1    ,    0.0    ,    0.1    ,    0.2    },
-                                               {   0.3    ,    0.2    ,    0.1    ,    0.0    ,    0.1    },
-                                               {   0.4    ,    0.3    ,    0.2    ,    0.1    ,    0.0    }};
-
-float line_bearing[5][5] =  {{   0.0    ,   M_PI    ,   M_PI    ,   M_PI    ,   M_PI    },
-                                               {   0.0    ,    0.0    ,   M_PI    ,   M_PI    ,   M_PI    },
-                                               {   0.0    ,    0.0    ,    0.0    ,   M_PI    ,   M_PI    },
-                                               {   0.0    ,    0.0    ,    0.0    ,    0.0    ,   M_PI    },
-                                               {   0.0    ,    0.0    ,    0.0    ,    0.0    ,    0.0    }};
-
-// ---------------- Diamond ----------------- CHNAGER
-float diamond_range[5][5] = {{   0.0    ,   M_PI    ,   M_PI    ,   M_PI    ,   M_PI    },
-                                               {   M_PI   ,    0.0    ,   M_PI    ,   M_PI    ,   M_PI    },
-                                               {   0.1    ,    0.2    ,    0.0    ,   M_PI    ,   M_PI    },
-                                               {   0.2    ,    0.1    ,    0.3    ,    0.0    ,   M_PI    },
-                                               {   0.2    ,    0.3    ,    0.1    ,    0.4    ,    0.0    }};
-
-float diamond_bearing[5][5] = {{   0.0    ,  5*M_PI/4 ,  3*M_PI/4 ,  5*M_PI/4 ,  3*M_PI/4 },
-                                               {  M_PI/4  ,    0.0    ,  M_PI/2   ,  5*M_PI/4 ,   1.8925  },
-                                               { 7*M_PI/4 ,  3*M_PI/2 ,    0.0    ,  4.3906   ,  3*M_PI/4 },
-                                               {  M_PI/4  ,   M_PI/4  ,   1.249   ,    0.0    ,   M_PI/2  },
-                                               { 7*M_PI/4 ,   5.0341  , 7*M_PI/4  ,  3*M_PI/2 ,    0.0    }};
-
-// -------------------------------------------------------------------------------
-// ------------------------ CHANGER OU ENLEVER ----------------------------
-// -------------------------------------------------------------------------
-
+// Weight matrix for obstacle avoidance
+int e_puck_matrix[2*NB_SENSORS] = { 17 , 29 , 34 , 10 , 8 , -38 , -56 , -76 , -72 , -58 , -36 , 8 , 10 , 36 , 28 , 18 };
 
 /*
  * Reset the robot's devices and get its ID
  */
 static void reset() {
 	wb_robot_init();
-	
 	receiver = wb_robot_get_device("receiver");
 	emitter = wb_robot_get_device("emitter");
 	
@@ -189,81 +99,31 @@ static void reset() {
 	printf("robot_name: %s\n",robot_name );
 
 	for(i=0;i<NB_SENSORS;i++){
-		wb_distance_sensor_enable(ds[i],64);
+		wb_distance_sensor_enable(ds[i],TIME_STEP);
        }
+	wb_receiver_enable(receiver,TIME_STEP);
 
-	wb_receiver_enable(receiver,64);
-
-	//Reading the robot's name. Pay attention to name specification when adding robots to the simulation!
 	sscanf(robot_name,"epuck%d",&robot_id_u); // read robot id from the robot's name
-	
     printf("Reset: robot %d\n",robot_id_u);
 }
 
 
 /*
- * Initialiaze the matrices defining the target range and bearing depending on the wanted formation and the flock size
- */
-
-void init_formation_matrices(void){
-
-    int i,j;
-    
-    if (FORMATION_TYPE == WEDGE){
-        for(i=0; i<FLOCK_SIZE; i++) {
-            for(j=0; j<FLOCK_SIZE; j++) {
-                target_range[i][j] = wedge_range[i][j];
-                target_bearing[i][j] = wedge_bearing[i][j];
-            }
-        }
-    }
-    else if (FORMATION_TYPE == COLUMN){
-        for(i=0; i<FLOCK_SIZE; i++) {
-            for(j=0; j<FLOCK_SIZE; j++) {
-                target_range[i][j] = column_range[i][j];
-                target_bearing[i][j] = column_bearing[i][j];
-            }
-        }
-    }
-    else if (FORMATION_TYPE == LINE){
-        for(i=0; i<FLOCK_SIZE; i++) {
-            for(j=0; j<FLOCK_SIZE; j++) {
-                target_range[i][j] = line_range[i][j];
-                target_bearing[i][j] = line_bearing[i][j];
-            }
-        }
-    }
-    else if (FORMATION_TYPE == DIAMOND){
-        for(i=0; i<FLOCK_SIZE; i++) {
-            for(j=0; j<FLOCK_SIZE; j++) {
-                target_range[i][j] = diamond_range[i][j];
-                target_bearing[i][j] = diamond_bearing[i][j];
-            }
-        }
-    }
-}
-   
-
-/*
- * Keep given int numbers within interval {-limit, limit} and reshape both numbers to keep their relative differences 
- * If above limit, set biggest number to limit and the smallest number to limit - their difference
+ * Keep numbers within interval {-limit, limit} and rescale both numbers to keep their relative difference unchanged.
+ * If the number is above the limit, set the biggest number to the limit and the smallest number to (limit - their difference)
  */
 void limit_and_rescale(int *number1, int *number2, int limit) {
 
     int delta;
     
     if ((*number1 > 0) && (*number2 > 0)){
-    
-        if (*number1 > *number2){ 
-         
+        if (*number1 > *number2){
             delta = *number1 - *number2;
             if (*number1 > limit){
                 *number1 = limit;
                 *number2 = limit-delta;
             }
-        
         }else{
-         
             delta = *number2 - *number1;
             if (*number2 > limit){
                 *number2 = limit;
@@ -272,9 +132,7 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
         }
     }
     else if ((*number1 > 0) && (*number2 < 0)){
-    
         delta = *number1 - *number2;
-    
         if ((*number1 >= limit) && (*number2 <= -limit)){
           *number1 = limit;
           *number2 = -limit;
@@ -290,9 +148,7 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
           
     }
     else if ((*number1 < 0) && (*number2 > 0)){
-    
         delta = *number2 - *number1;
-    
         if ((*number1 <= -limit) && (*number2 >= limit)){
           *number1 = -limit;
           *number2 = limit;
@@ -308,17 +164,14 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
       
     }
     else if ((*number1 < 0) && (*number2 < 0)){
-    
-        if (*number1 < *number2){ 
-         
+        if (*number1 < *number2){
             delta = *number2 - *number1;
             if (*number1 < -limit){
                 *number1 = -limit;
                 *number2 = -limit+delta;
             }
-        
-        }else{
-         
+        }
+        else{
             delta = *number1 - *number2;
             if (*number2 < -limit){
                 *number1 = -limit+delta;
@@ -370,7 +223,6 @@ void process_received_ping_messages(void) {
           
           friend_robot_id = (int)(inbuffer[5]-'0');  // since the name of the sender is in the received message.
           
-		
           if ((FLOCK_SIZE >= 4) && (friend_robot_id == 1) && (robot_id_u == 3)){
         	    measured_range_bearing[0] = range;
         	    measured_range_bearing[1] = bearing;
@@ -401,7 +253,7 @@ void process_received_ping_messages(void) {
 
 /*
  * Calculates the weight of the integral part of the controller (allowing the intagrator to 
- * discharge when the leader and the followers are not aligned 
+ * discharge when the leader and the followers are not aligned)
 */
 float sigmoid(float delta_bearing){
   
@@ -421,7 +273,7 @@ float sigmoid(float delta_bearing){
 
 /*
  * Given the measured range and bearing of your friend, determine the control commands 
- * (u = linear velocity, omega = angular velocity) to match your target range and bearing
+ * (u = linear velocity, w = angular velocity) to match your target range and bearing
 */
 
 void range_bearing_to_command(int *msl, int *msr){
@@ -433,30 +285,8 @@ void range_bearing_to_command(int *msl, int *msr){
     float delta_range = 0.0;
     float u,w;
     
-    if ((FLOCK_SIZE >= 4) && (robot_id_u == 3)){ // friend = 1
-        delta_range = measured_range_bearing[0] - target_range[3][1];
-        delta_bearing = measured_range_bearing[1] - target_bearing[3][1];
-    }
-    else if ((FLOCK_SIZE >= 2) && (robot_id_u == 1)){ // friend = 0
-        delta_range = measured_range_bearing[0] - target_range[1][0];
-        delta_bearing = measured_range_bearing[1] - target_bearing[1][0];
-    }
-    else if ((FLOCK_SIZE >= 3) && (robot_id_u == 2)){ // friend = 0
-        delta_range = measured_range_bearing[0] - target_range[2][0];
-        delta_bearing = measured_range_bearing[1] - target_bearing[2][0];
-    }
-    else if ((FLOCK_SIZE >= 5) && (robot_id_u == 4)){ // friend = 2
-        delta_range = measured_range_bearing[0] - target_range[4][2];
-        delta_bearing = measured_range_bearing[1] - target_bearing[4][2];
-    }
-    else if ((FLOCK_SIZE >= 6) && (robot_id_u == 5)){ // friend = 4
-        delta_range = measured_range_bearing[0] - target_range[5][4];
-        delta_bearing = measured_range_bearing[1] - target_bearing[5][4];
-    }
-    else if ((FLOCK_SIZE >= 7) && (robot_id_u == 6)){ // friend = 3
-        delta_range = measured_range_bearing[0] - target_range[6][3];
-        delta_bearing = measured_range_bearing[1] - target_bearing[6][3];
-    }
+    delta_range = measured_range_bearing[0] - target_range;
+    delta_bearing = measured_range_bearing[1] - target_bearing;
     
     if (CONTROLLER_TYPE == P){
         u = Ku*delta_range*cosf(delta_bearing);// Compute forward control
@@ -474,104 +304,70 @@ void range_bearing_to_command(int *msl, int *msr){
     limit_and_rescale(msl, msr, MAX_SPEED);
 }
 
-/*
- * A enlever
-*/
-
-void print_target(void){
-
-   int i,j;
-            
-   printf("target bearing\n");
-   for(i = 0; i < FLOCK_SIZE; i++){
-      for(j = 0; j < FLOCK_SIZE; j++){
-                    
-          printf("%f, ", target_bearing[i][j]);
-      }
-   printf("\n");
-   }
-            
-}
-            
-
 
 // the main function
 int main(){
        
     int msl = 0;                    // Left wheel speed
-    int msr = 0;			// Right wheel speed
+    int msr = 0;			        // Right wheel speed
     float msl_w, msr_w;
     int bmsl, bmsr, sum_sensors;    // Braitenberg parameters
     int i;                          // Loop counter
     int ds_value[NB_SENSORS];       // Array for the distance sensor readings
     int max_sens;                   // Store highest sensor value
 
-    reset();			        // Resetting the robot
+    reset();			            // Resetting the robot
+
+    target_bearing = target_bearing_followers[robot_id_u - 1]; // Set the bearing target for the current robot
  	
-    // Initialize the range and bearing target matrices according to the chosen formation type
-    init_formation_matrices();  
- 	
-    // initial state: formation
-    fsm_state = FORMATION;
-    //print_target();
-       
-	// Forever
-	for(;;){
-        
+    fsm_state = FORMATION;  // initial state of FSM: formation
+    
+	for(;;){ // Forever
         bmsl = 0; bmsr = 0;
         sum_sensors = 0;
-        max_sens = 0; 
-
-          // Condition for entering obstacle avoidance state (threshold on one of the four front sensors)
+        max_sens = 0;
         
-          // Braitenberg
-          for(i = 0; i < NB_SENSORS; i++) {
-                  ds_value[i] = wb_distance_sensor_get_value(ds[i]); //Read sensor values
-                  sum_sensors += ds_value[i]; // Add up sensor values
-                  max_sens = max_sens>ds_value[i]?max_sens:ds_value[i]; // Check if new highest sensor value
-              			// Weighted sum of distance sensor values for Braitenburg vehicle
-                  bmsr += e_puck_matrix[i] * ds_value[i];
-                  bmsl += e_puck_matrix[i + NB_SENSORS] * ds_value[i];
-          }
-          // Adapt Braitenberg values (empirical tests)
-          bmsl/=MIN_SENS; bmsr/=MIN_SENS;
-          bmsl+=66; bmsr+=72;
+        // Braitenberg
+        for(i = 0; i < NB_SENSORS; i++) {
+           ds_value[i] = wb_distance_sensor_get_value(ds[i]);
+           sum_sensors += ds_value[i];
+           max_sens = max_sens>ds_value[i]?max_sens:ds_value[i]; // Check if new highest sensor value
+           
+           // Weighted sum of distance sensor values for Braitenburg vehicle
+           bmsr += e_puck_matrix[i] * ds_value[i];
+           bmsl += e_puck_matrix[i + NB_SENSORS] * ds_value[i];
+        }
+        // Adapt Braitenberg values (empirical tests)
+        bmsl/=MIN_SENS; bmsr/=MIN_SENS;
+        bmsl+=66; bmsr+=72;
           
-          send_ping();  // sending a ping to other robot, so they can measure their distance to this robot
-          process_received_ping_messages();
+        send_ping();  // sending a ping to other robot, so they can measure their distance to this robot
+        process_received_ping_messages();
           
-          // Condition for entering obstacle avoidance state (threshold on one of the four front sensors)
-          if ((ds_value[0] > AVOIDANCE_THRESH ||
-               ds_value[7] > AVOIDANCE_THRESH ||
-               ds_value[6] > AVOIDANCE_THRESH ||
-               ds_value[1] > AVOIDANCE_THRESH) && (fsm_state == FORMATION)){
-          
+        // Condition for entering obstacle avoidance state (threshold on one of the four front sensors)
+        if ((ds_value[0] > AVOIDANCE_THRESH || ds_value[7] > AVOIDANCE_THRESH ||
+             ds_value[6] > AVOIDANCE_THRESH || ds_value[1] > AVOIDANCE_THRESH) && (fsm_state == FORMATION)){
               fsm_state = AVOIDANCE;
-          }
+        }
         
         if (fsm_state == FORMATION){ //formation state --- do only formation
-            
-            //formation command
-            range_bearing_to_command(&msl, &msr);
+            range_bearing_to_command(&msl, &msr); //formation command
         }
         else{ //avoidance state --- do only braitenberg
-            
             msl = bmsl;
             msr = bmsr;
         }
-
         limit_and_rescale(&msl, &msr, MAX_SPEED);
 
         // Set speed
         msl_w = msl*MAX_SPEED_WEB/(MAX_SPEED+1);
         msr_w = msr*MAX_SPEED_WEB/(MAX_SPEED+1);
 
-                
         wb_motor_set_velocity(left_motor, msl_w);
         wb_motor_set_velocity(right_motor, msr_w);
            
         //Condition to exit avoidance state
-        if((fsm_state == AVOIDANCE) && (max_sens < 70)){ //Exit condition of "avoidance
+        if((fsm_state == AVOIDANCE) && (max_sens < FORMATION_THRESH)){ //Exit condition of "avoidance
             fsm_state = FORMATION;
         }
 
