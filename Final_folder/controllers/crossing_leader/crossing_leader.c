@@ -110,11 +110,6 @@ static double controller_get_heading_gps();
 static void controller_get_encoder();
 
 
-
-
-
-
-
 /*
  * Reset the robot's devices and get its ID
  */
@@ -253,10 +248,6 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
 void compute_wheel_speeds(int *msl, int *msr) 
 {
 	// Compute wanted position from Reynold's speed and current location
-        //printf("SPEED ENTERIN")
-	//float x = speed[0]*cosf(controller_get_heading_gps()) + speed[1]*sinf(controller_get_heading_gps()); // x in robot coordinates
-	//printf("speed[0] = %g, cosf = %lf, speed[1] = %g, sinf = %lf\n\n",speed[0], cos(controller_get_heading_gps()),speed[1],sinf(controller_get_heading_gps()));
-	//float z = -speed[0]*sinf(controller_get_heading_gps()) + speed[1]*cosf(controller_get_heading_gps()); // z in robot coordinates
 	float x = speed[0]*cosf(_kal_wheel.heading) + speed[1]*sinf(_kal_wheel.heading); // x in robot coordinates
 	printf("speed[0] = %g, cosf = %lf, speed[1] = %g, sinf = %lf\n\n",speed[0], cos(_kal_wheel.heading),speed[1],sinf(_kal_wheel.heading));
 	float z = -speed[0]*sinf(_kal_wheel.heading) + speed[1]*cosf(_kal_wheel.heading); // z in robot coordinate
@@ -438,16 +429,10 @@ int main(){
                // This is the leader robot wanting to go left 
                 
                 if (robot_id_u == 0) {
-                        printf("Robot 0: Kalman_x = %g, Kalman_y = %g\n", _kal_wheel.x, _kal_wheel.y); 
-                        
-                        //double tmp_x = (migrLeft[0]-_meas.gps[0]);
-                        //double tmp_z = (migrLeft[1]-_meas.gps[2]);
                         double tmp_x = (migrLeft[0]-_kal_wheel.x);
                         double tmp_z = (migrLeft[1]-_kal_wheel.y);
-                        printf("tmp_x = %g, tmp_z = %g\n", tmp_x, tmp_z);
                        speed[0] = tmp_x * MIGRATION_WEIGHT;
                   	speed[1] = tmp_z * MIGRATION_WEIGHT;
-                  	printf("ID = 0:speed 0 = %g speed 1 = %g\n", speed[0], speed[1]);
                 
                 }
                 else if (robot_id_u == 5) {
