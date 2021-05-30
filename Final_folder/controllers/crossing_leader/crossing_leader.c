@@ -608,7 +608,7 @@ bool controller_init() {
 void controller_print_log(double time) {
 
     if (fp != NULL) {
-        fprintf(fp, "%g; %g; %g; %g; %g; %g; %g; %g; %g\n",
+        fprintf(fp, "%g; %g; %g; %g; %g; %g; %g; %g; %g; %g\n",
                 time, _pose.x, _pose.y, _pose.heading, _meas.gps[0], _meas.gps[2],
                 _kal_wheel.x,
                 _kal_wheel.y, _kal_wheel.heading, _meas.gps_heading[0]);
