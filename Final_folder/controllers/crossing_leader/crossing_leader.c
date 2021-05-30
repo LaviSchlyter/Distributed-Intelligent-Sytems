@@ -249,20 +249,16 @@ void compute_wheel_speeds(int *msl, int *msr)
 {
 	// Compute wanted position from Reynold's speed and current location
 	float x = speed[0]*cosf(_kal_wheel.heading) + speed[1]*sinf(_kal_wheel.heading); // x in robot coordinates
-	printf("speed[0] = %g, cosf = %lf, speed[1] = %g, sinf = %lf\n\n",speed[0], cos(_kal_wheel.heading),speed[1],sinf(_kal_wheel.heading));
+	
 	float z = -speed[0]*sinf(_kal_wheel.heading) + speed[1]*cosf(_kal_wheel.heading); // z in robot coordinate
         
-        printf("x = %f ; z = %f\n", x, z);
+        
 	float Ku = 0.2;   // Forward control coefficient
 	float Kw = 0.5;  // Rotational control coefficient
 	float range = sqrtf(x*x + z*z);	  // Distance to the wanted position
 	float bearing = atan2(z, x);	  // Orientation of the wanted position
-	printf("bearing to wanted = %g\n", RAD2DEG(bearing));
-	printf("range of interest = %g\n", range);
-	printf("Heading GPS = %g\n", RAD2DEG(controller_get_heading_gps()));
-	printf("Kalman heading = %g\n", RAD2DEG(_kal_wheel.heading));
 	
-	// Compute forward control= 3.22526e-319
+	// Compute forward control
 	float u = Ku*range*cosf(bearing);
 	// Compute rotational control
 	float w = Kw*bearing;
@@ -270,8 +266,8 @@ void compute_wheel_speeds(int *msl, int *msr)
 	// Convert to wheel speeds!
 	*msl = (u - WHEEL_AXIS*w/2.0) * (1000.0 / WHEEL_RADIUS);
 	*msr = (u + WHEEL_AXIS*w/2.0) * (1000.0 / WHEEL_RADIUS);
-	printf("msl = %lf\n", *msl);
-	printf("msr = %lf\n", *msr);
+	
+	
 
         limit_and_rescale(msl, msr, MAX_SPEED);
 }
@@ -390,10 +386,7 @@ int main(){
             
             
             if (fsm_state == MIGRATION){ //formation state --- do only formation
-            
-              
-              printf("------------------------------- ROBOT_ID = %d--------------------------   \n  ", robot_id_u);
-             printf("---------Pose robot x= %lf, y=%lf, heading =%lf\n", _pose.x, _pose.y,RAD2DEG(_pose.heading));
+             
               // Get Position using Kalman
               time_step = wb_robot_get_basic_time_step();
               // Position from GPS
@@ -436,10 +429,7 @@ int main(){
                 
                 }
                 else if (robot_id_u == 5) {
-                printf("Robot 5: Kalman_x = %g, Kalman_y = %g\n", _kal_wheel.x, _kal_wheel.y); 
-                    
-                    //double tmp_x = (migrRight[0]-_meas.gps[0]);
-                    //double tmp_z = (migrRight[1]-_meas.gps[2]);
+               
                     double tmp_x = (migrRight[0]-_kal_wheel.x);
                     double tmp_z = (migrRight[1]-_kal_wheel.y);
                     
@@ -449,19 +439,8 @@ int main(){
       		    
       		    
                 }
-                //printf("mirgLeftx = %g,mirgLefty = %g, meas_gps = %g\n", migrLeft[0],migrLeft[1], _meas.gps[0]);
-                //printf("migrRightx = %g,migrRighty = %g, meas_gps = %g\n", migrRight[0],migrRight[1], _meas.gps[0]);
-                
-            
-                
+
               compute_wheel_speeds(&msl, &msr);
-              
-              
-              //msl = 200;
-              //msr = 200;
-              
-                
-         
 
             }
             else{ 
@@ -517,8 +496,8 @@ void controller_get_pose_gps() {
         _pose.y = -(_meas.gps[2] - _pose_origin_L.y);
 
         _pose.heading = -controller_get_heading_gps() + _pose_origin_L.heading;
-        printf("GPS heading = %lf\n", RAD2DEG(-controller_get_heading_gps()));
-        printf("Robot5 heading = %lf\n", RAD2DEG(_pose.heading));
+        
+       
         
         }
         
@@ -543,7 +522,6 @@ void controller_get_gps() {
     // Stores in memory at address of _meas.gps, the data of computed gps_position
     memcpy(_meas.gps, gps_position, sizeof(_meas.gps));
     
-    printf("GPSx = %g, GPSy = %g\n", _meas.gps[0], _meas.gps[2]);
 
 }
 /**
@@ -583,9 +561,7 @@ void controller_get_encoder() {
     _meas.left_enc = 0.0;
     
     ;}
-    printf("Left encoder = %g\n", _meas.left_enc);
-    
-    
+   
     // Store previous value of the right encoder
     _meas.prev_right_enc = _meas.right_enc;
     
@@ -596,7 +572,7 @@ void controller_get_encoder() {
     _meas.right_enc = 0.0;
     
     ;}
-    printf("Riht encoder = %g\n", _meas.right_enc);
+    
 }
 
 
