@@ -5,7 +5,7 @@ sceneTreePerspectives: 000000ff0000000100000002000000c0000000fc01000000060100000
 maximizedDockId: -1
 centralWidgetVisible: 1
 orthographicViewHeight: 1
-textFiles: 2 "controllers/crossing_leader/crossing_leader.c" "controllers/crossing_leader/Makefile" "controllers/crossing_follower_mataric/crossing_follower_mataric.c"
+textFiles: 0 "controllers/crossing_leader/crossing_leader.c" "controllers/crossing_leader/Makefile" "controllers/crossing_follower_mataric/crossing_follower_mataric.c"
 consoles: Console:All:All
 renderingDevicePerspectives: epuck0:camera;1;1;0;0
 renderingDevicePerspectives: epuck1:camera;1;1;0;0
