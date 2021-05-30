@@ -585,7 +585,7 @@ bool controller_init_log(const char *filename) {
 
     if (!err) {
         fprintf(fp,
-                "time; pose_x; pose_y; pose_heading;  gps_x; gps_y; kal_wheel_x; kal_wheel_y; kal_wheel_heading\n");
+                "time; pose_x; pose_y; pose_heading;  gps_x; gps_y; kal_wheel_x; kal_wheel_y; kal_wheel_heading; gps_heading\n");
 
     }
 
@@ -611,7 +611,7 @@ void controller_print_log(double time) {
         fprintf(fp, "%g; %g; %g; %g; %g; %g; %g; %g; %g\n",
                 time, _pose.x, _pose.y, _pose.heading, _meas.gps[0], _meas.gps[2],
                 _kal_wheel.x,
-                _kal_wheel.y, _kal_wheel.heading);
+                _kal_wheel.y, _kal_wheel.heading, _meas.gps_heading[0]);
     }
 
 }
