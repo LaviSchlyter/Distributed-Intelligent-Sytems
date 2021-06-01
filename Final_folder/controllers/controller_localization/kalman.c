@@ -9,7 +9,7 @@
   *
 */
 
-// The parameters have been tuned by analysing the perfomance 16.05
+
 /*CONSTANTS*/
 #define WHEEL_AXIS        0.057        // Distance between the two wheels in meter
 #define WHEEL_RADIUS            0.020        // Radius of the wheel in meter
@@ -17,8 +17,8 @@
 #define true  1
 #define false 0
 
-#define VERBOSE_ACC_KAL true                       // Print the accelerometer Kalman
-#define VERBOSE_WHEEL_KAL true                       // Print the wheel encoder Kalman
+#define VERBOSE_ACC_KAL false                       // Print the accelerometer Kalman
+#define VERBOSE_WHEEL_KAL false                       // Print the wheel encoder Kalman
 
 int time_step;
 /// Variables to store the pose of wheel and the position+velocities for accelerometer
@@ -185,15 +185,15 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
                       
                       
 
-    // Not using gps header
+    // Because the GPS is only updated every second, the heading is not very accurate and we thus do not update the heading with GPS but keep the odometry value
     double heading =  pos_kal_wheel ->heading;
-    double z[3] = {pose_.x, pose_.y, heading};
-    // Renaming for ease of notation
-    
+    double z[3] = {pose_.x, pose_.y, heading};    
 
     // Convert from radians to meters
     Aleft_enc *= WHEEL_RADIUS;
     Aright_enc *= WHEEL_RADIUS;
+    
+    // Filter out absurd starting values
     if (Aleft_enc <0.30 & Aright_enc < 0.3) {
 
 
@@ -290,13 +290,10 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
                                {0, 1, 0},
                                {0, 0, 1}};
 
-    // Update using pose at every second
-    //if (time_now > 2) {
+    // Update using pose/GPS at every second
     
-
     if (time_now - last_gps_time_whe > 1.0f) {
-    printf("Update with GPS\n");
-
+    
         last_gps_time_whe = time_now;
 
         /// Compute Kalman gain K
