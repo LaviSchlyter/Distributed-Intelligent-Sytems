@@ -1,21 +1,23 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <odometry.h>
+
 #include "kalman.h"
 /** Kalman filter
   * Framework to estimate an unknown variable using a series of measurements containing noise.
   * Best possible linear estimator
   *
 */
+
+// The parameters have been tuned by analysing the perfomance 16.05
 /*CONSTANTS*/
 #define WHEEL_AXIS        0.057        // Distance between the two wheels in meter
-#define WHEEL_RADIUS            0.0205        // Radius of the wheel in meter
-#define K                     0.01                               // da,mn
+#define WHEEL_RADIUS            0.020        // Radius of the wheel in meter
+#define K                     0.05                               // da,mn
 #define true  1
 #define false 0
 
-#define VERBOSE_ACC_KAL false                       // Print the accelerometer Kalman
+#define VERBOSE_ACC_KAL true                       // Print the accelerometer Kalman
 #define VERBOSE_WHEEL_KAL true                       // Print the wheel encoder Kalman
 
 int time_step;
@@ -178,19 +180,21 @@ void transpose(int row, int col, double mat[][col], double mat_trans[][row]) {
  * @param Aright_enc Reft wheel encoder
  * @param pose_ Pose structure where the true positon are stored
  */
-void
-compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double time_now, double Aleft_enc, double Aright_enc,
+void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double time_now, double Aleft_enc, double Aright_enc,
                       const pose_t pose_) {
+                      
+                      
 
-    // Measurements from GPS rescaled as pose
-    double z[3] = {pose_.x, pose_.y, pose_.heading};
-
+    // Not using gps header
+    double heading =  pos_kal_wheel ->heading;
+    double z[3] = {pose_.x, pose_.y, heading};
     // Renaming for ease of notation
-    double heading = pose_.heading;
+    
 
     // Convert from radians to meters
     Aleft_enc *= WHEEL_RADIUS;
     Aright_enc *= WHEEL_RADIUS;
+    if (Aleft_enc <0.30 & Aright_enc < 0.3) {
 
 
     const double delta_s = (Aright_enc + Aleft_enc) / 2;
@@ -210,7 +214,7 @@ compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double time_no
     static double Cov[3][3] = {
             {1, 0, 0},
             {0, 1, 0},
-            {0, 0, 1}};
+            {0, 0, 0.01}};
 
 
     // Pose propagation noise matrix
@@ -275,10 +279,11 @@ compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double time_no
     static double CT[3][3];
     transpose(3, 3, C, CT);
 
-    // Covariance matrix, measurement noise
+    // Covariance matrix, measurement noise (GPS)
+    // Do not trust the heading of GPS 
     static double Q[3][3] = {{0.001, 0,     0},
                              {0,     0.001, 0},
-                             {0,     0,     0.001}};
+                             {0,     0,     1}};
 
     // Identity matrix
     static double Id3[3][3] = {{1, 0, 0},
@@ -286,8 +291,11 @@ compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double time_no
                                {0, 0, 1}};
 
     // Update using pose at every second
+    //if (time_now > 2) {
+    
 
     if (time_now - last_gps_time_whe > 1.0f) {
+    printf("Update with GPS\n");
 
         last_gps_time_whe = time_now;
 
@@ -338,6 +346,7 @@ compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double time_no
             for (int j = 0; j < 3; j++)
                 Cov[i][j] = tmp12[i][j];
     }
+    
 
 
     /// Storing computed position into pose vector
@@ -350,6 +359,7 @@ compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double time_no
     X_wheel[2] = X_new_wheel[2];
 
     memcpy(pos_kal_wheel, &_kal_wheel, sizeof(pose_t));
+    }
 
 
 }
