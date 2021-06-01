@@ -1,13 +1,3 @@
-/*****************************************************************************************************************************/
-/* File:         pso_robot_flock.c                                              */
-/* Version:      1.0                                                            */
-/* Date:         01-Mai-21                                                      */
-/* Description:  PSO for the flocking with a group public homogenous method.    */
-/*               Robot controller based on robot_flocking.c                     */
-/*                                                                              */
-/* Author:       Paco Mermoud                                                   */
-/*****************************************************************************************************************************/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -26,24 +16,21 @@
 #include "../localization_controller/odometry.h"
 #include "../localization_controller/kalman.h"
 
-#define VERBOSE           0
-#define NB_SENSORS	     8	 // Number of distance sensors
-#define MIN_SENS          350    // Minimum sensibility value
-#define MAX_SENS          4096   // Maximum sensibility value
-#define MAX_SPEED         800    // Maximum speed
-#define MAX_DIFF (2*MAX_SPEED)   // Maximum difference between wheel speeds
-#define MAX_SPEED_WEB      6.28  // Maximum speed webots
-#define FLOCK_SIZE	       5	 // Size of flock
-#define TIME_STEP	       64	 // [ms] Length of time step
+
+
+#define VERBOSE           1
+#define NB_SENSORS	     8	  // Number of distance sensors
+#define MIN_SENS          350     // Minimum sensibility value
+#define MAX_SENS          4096    // Maximum sensibility value
+#define MAX_SPEED         800    //800 or 1000 (TODO braitenberg)     // Maximum speed
+#define MAX_SPEED_WEB      6.28    // Maximum speed webots
+#define FLOCK_SIZE	       5	  // Size of flock
+#define TIME_STEP	       64	  // [ms] Length of time step
 
 #define AXLE_LENGTH 		0.052	// Distance between wheels of robot (meters)
 #define SPEED_UNIT_RADS	0.00628	// Conversion factor from speed unit to radian per second
 #define WHEEL_RADIUS		0.0205	// Wheel radius (meters)
 #define DELTA_T		0.064	// Timestep (seconds)
-
-// PSO
-#define SIM_STEPS 600                   // number of simulation steps/iterations
-#define DATASIZE NB_SENSORS+5         // Number of elements in particle (2 Neurons with 8 proximity sensors and 5 params for flocking)
 
 // Reynolds
 #define RULE1_THRESHOLD     0.2   // Threshold to activate aggregation rule. default 0.20
@@ -62,10 +49,8 @@
 WbDeviceTag left_motor; //handler for left wheel of the robot
 WbDeviceTag right_motor; //handler for the right wheel of the robot
 WbDeviceTag ds[NB_SENSORS]; // ps[NB_SENSORS];(TODO braitenberg)	// Handle for the infrared distance sensors
-WbDeviceTag receiver;		// Handle for the receiver node for flocking
-WbDeviceTag emitter;		// Handle for the emitter node for flocking
-WbDeviceTag rec_pso;		// Handle for the receiver node for PSO
-WbDeviceTag emit_pso;		// Handle for the emitter node for PSO
+WbDeviceTag receiver;		// Handle for the receiver node
+WbDeviceTag emitter;		// Handle for the emitter node
 WbDeviceTag left_encoder;//handler for left encoder of the robot
 WbDeviceTag right_encoder;//handler for right encoder of the robot
 WbDeviceTag dev_gps; // GPS handler
@@ -156,14 +141,15 @@ static void reset() {
 		initialized[i] = 0;		  // Set initialization to 0 (= not yet initialized)
 	}
 
-    printf("Reset: robot %d\n",robot_id_u);
+        printf("Reset: robot %d\n",robot_id_u);
 
-    migr[0] = 0; // TODO
-    migr[1] = -25;
-          // Receiver and emiter PSO
-    emit_pso = wb_robot_get_device("emitter_epuck_pso");
-    rec_pso = wb_robot_get_device("receiver_epuck_pso");
-    wb_receiver_enable(rec_pso, TIME_STEP/2);
+
+
+        migr[0] = 0;
+        migr[1] = -25;  
+        
+        
+
 }
 
 
@@ -196,7 +182,7 @@ void update_self_motion(int msl, int msr) {
         
         controller_get_pose_gps();
 	
-	// Update odometry with wheel encoders using pose (GPS derived)
+	// Update odometry with wheel encoders usng pose (GPS derived) 	
 	compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, dl,
                                        dr, _pose);
        
@@ -251,25 +237,27 @@ void reynolds_rules() {
 
 	/* Compute averages over the whole flock */
 	for(i=0; i<FLOCK_SIZE; i++) {
-        if (i == robot_id)
-             continue; // don't consider yourself for the average
-        for (j=0;j<2;j++) {
-             rel_avg_speed[j] += relative_speed[i][j];
-             rel_avg_loc[j] += relative_pos[i][j];
-        }
-    }
-   for (j=0;j<2;j++) {
-        rel_avg_speed[j] /= FLOCK_SIZE-1;
-        rel_avg_loc[j] /= FLOCK_SIZE-1;
-   }
+                if (i == robot_id)
+                    continue; // don't consider yourself for the average
+                for (j=0;j<2;j++) {
+                         rel_avg_speed[j] += relative_speed[i][j];
+                         rel_avg_loc[j] += relative_pos[i][j];
+                 }
+            }
+           for (j=0;j<2;j++) {
+                 rel_avg_speed[j] /= FLOCK_SIZE-1;
+                 rel_avg_loc[j] /= FLOCK_SIZE-1;
+           }
 
 	/* Rule 1 - Aggregation/Cohesion: move towards the center of mass */
 
-    for (j=0;j<2;j++) {
-        if (sqrt(pow(rel_avg_loc[0],2)+pow(rel_avg_loc[1],2)) > RULE1_THRESHOLD) {
-            cohesion[j] = rel_avg_loc[j];
-        }
-    }
+      for (j=0;j<2;j++) {
+
+           if (sqrt(pow(rel_avg_loc[0],2)+pow(rel_avg_loc[1],2)) > RULE1_THRESHOLD) {
+                cohesion[j] = rel_avg_loc[j];
+	 }
+
+      }
 
 	/* Rule 2 - Dispersion/Separation: keep far enough from flockmates */
 	for (k=0;k<FLOCK_SIZE;k++) {
@@ -283,17 +271,20 @@ void reynolds_rules() {
 		}
 	}
 
+
+
+
 	/* Rule 3 - Consistency/Alignment: match the speeds of flockmates */
 	for (j=0;j<2;j++) {
 		consistency[j] = rel_avg_speed[j];
 		//consistency[j] = 0;
-    }
+         }
 
-    //aggregation of all behaviors with relative influence determined by weights
+         //aggregation of all behaviors with relative influence determined by weights
 	for (j=0;j<2;j++) {
-       speed[robot_id][j] = cohesion[j] * RULE1_WEIGHT;
-       speed[robot_id][j] +=  dispersion[j] * RULE2_WEIGHT;
-       speed[robot_id][j] +=  consistency[j] * RULE3_WEIGHT;
+      	      speed[robot_id][j] = cohesion[j] * RULE1_WEIGHT;
+  	      speed[robot_id][j] +=  dispersion[j] * RULE2_WEIGHT;
+  	      speed[robot_id][j] +=  consistency[j] * RULE3_WEIGHT; 
 
 	}
 	speed[robot_id][1] *= -1; //y axis of webots is inverted
@@ -310,6 +301,7 @@ void reynolds_rules() {
   	        
 	}
 }
+
 
 
 /*
@@ -365,237 +357,176 @@ void process_received_ping_messages(void) {
 	}
 }
 
-// Find the fitness for obstacle avoidance of the passed controller
-double simulation_webot(double weights[DATASIZE]){
-
-  if(VERBOSE && 1 && robot_verbose){printf("Simulation standard\n");}
-  int msl, msr;			// Wheel speeds
-  double msl_w, msr_w;
-  int bmsl, bmsr, sum_sensors;	// Braitenberg parameters
-  int i, j;				// Loop counter
-  int ds_value[NB_SENSORS];	// Array for the distance sensor readings
-  int max_sens;			// Store highest sensor value
-  double priority; // non linear weight to prioritarize braitenberg
-  msl = 0; msr = 0;
-  max_sens = 0;
-
-  // Calcul fitness
-  double fit_speed=0;           // Speed aspect of fitness
-  double fit_diff=0;            // Speed difference between wheels aspect of fitness
-  double fit_sens=0;            // Proximity sensing aspect of fitness
-  double fitness;             // Fitness of controller
-  double sens_val[NB_SENSORS]; // Average values for each proximity sensor
-  for (i=0;i<NB_SENSORS;i++) { // Initialisation
-        sens_val[i] = 0.0;
-    }
 
 
-  // Update intial position TODO init with GPS (NB: add 2 step of sim to init GPS)
-  my_position[0]=0;
-  my_position[1]=0;
-  my_position[2]=0;
-  prev_my_position[0]=0;
-  prev_my_position[1]=0;
-  prev_my_position[2]=0;
-
-  // Forever
-  for(j=0;j<SIM_STEPS;j++){
-    bmsl = 0; bmsr = 0;
-    sum_sensors = 0;
-    max_sens = 0;
-    if(VERBOSE && robot_verbose){printf("-------------------------\n");}
-    /* Braitenberg */
-    for(i=0;i<NB_SENSORS;i++) {
-        ds_value[i]=wb_distance_sensor_get_value(ds[i]); //Read sensor values
-        sum_sensors += ds_value[i]; // Add up sensor values
-        max_sens = max_sens>ds_value[i]?max_sens:ds_value[i]; // Check if new highest sensor value
-        if(VERBOSE&&1&&robot_verbose){printf("robot%d Sensor%d = %d\n", robot_id_u, i,ds_value[i]);}
-        // Weighted sum of distance sensor values for Braitenburg vehicle
-        bmsr += weights[i] * ds_value[i];//moi 2
-        bmsl += (weights[NB_SENSORS-1-i]+2) * ds_value[i];
-    }
-
-    // Adapt Braitenberg values (empirical tests)
-    bmsl/=MIN_SENS; bmsr/=MIN_SENS;
-    bmsl+=66; bmsr+=72;
-    if(VERBOSE && 1 && robot_verbose){printf("Bmsl=%d, Bmsr=%d\n", bmsl, bmsr);}
-    /* Send and get information */
-    send_ping();  // sending a ping to other robot, so they can measure their distance to this robot
-
-    /// Compute self position
-    prev_my_position[0] = my_position[0];
-    prev_my_position[1] = my_position[1];
-    if(VERBOSE && 1 && robot_verbose){printf("My position: x=%lf, y=%lf\n", my_position[0], my_position[1]);}
-    update_self_motion(msl,msr);
-
-    process_received_ping_messages();
-
-    speed[robot_id][0] = (1/DELTA_T)*(my_position[0]-prev_my_position[0]);
-    speed[robot_id][1] = (1/DELTA_T)*(my_position[1]-prev_my_position[1]);
-
-    // Reynold's rules with all previous info (updates the speed[][] table)
-    reynolds_rules(weights[NB_SENSORS], weights[NB_SENSORS+1], weights[NB_SENSORS+2], weights[NB_SENSORS+3], weights[NB_SENSORS+4]);
-
-    // Compute wheels speed from reynold's speed
-    if(VERBOSE && 1 && robot_verbose){printf("Avant Reynodl: \nmsl=%d, msr=%d\n", msl, msr);}
-    compute_wheel_speeds(&msl, &msr);
-    if(VERBOSE && 1 && robot_verbose){printf("Avec Reynodl: \nmsl=%d, msr=%d\n", msl, msr);}
-
-
-    priority=2;
-    if ((ds_value[0]>2100 || ds_value[7]>2100) && !avoidance){ //Entry1 condition of "avoidance
-         avoidance=1;
-         // Avoid to the left or right ?
-         if(ds_value[7] < ds_value[0]){
-           side=0; // left
-           if(robot_verbose && VERBOSE){printf("Robot%d to left\n", robot_id_u);}
-         }
-         else{
-           side=1; // right
-           if(robot_verbose && VERBOSE){printf("Robot%d to right\n", robot_id_u);}
-         }
-    if(robot_verbose && VERBOSE){printf("ENTER AVOIDANCE (front) --------------\n");}
-    }
-    else if ((ds_value[6]>2100 || ds_value[1]>2100) && !avoidance){ //Entry2 condition of "avoidance
-         avoidance=1;
-         // Avoid to the left or right ?
-         if(ds_value[6] < ds_value[1]){
-           side=0; // left
-           if(robot_verbose){printf("Robot%d to left\n", robot_id_u);}
-         }
-         else{
-           side=1; // right
-           if(robot_verbose){printf("Robot%d to right\n", robot_id_u);}
-         }
-
-        if(robot_verbose && VERBOSE){printf("ENTER AVOIDANCE (Side) --------------\n");}
-    }
-    else if ((ds_value[5]>2100 || ds_value[2]>2100) && !avoidance){ //Entry2 condition of "avoidance
-       avoidance=1;
-       // Avoid to the left or right ?
-       if(ds_value[5] < ds_value[2]){
-         side=0; // left
-         if(VERBOSE && 1 && robot_verbose){printf("Robot%d to left\n", robot_id_u);}
-       }
-       else{
-         side=1; // right
-         if(VERBOSE && 1 && robot_verbose){printf("Robot%d to right\n", robot_id_u);}
-       }
-
-        if(VERBOSE && 1 && robot_verbose){printf("ENTER AVOIDANCE (Side) --------------\n");}
-    }
-
-
-    if (!avoidance){ // normal mode
-        msl -= msl*max_sens/(priority*MAX_SENS);
-        msr -= msr*max_sens/(priority*MAX_SENS);
-    }
-    else{ // avoidance mode
-        if(side){ // avoid to the right
-            if(ds_value[7]>1300){
-                msl = 140;
-                msr = 150;
-            }
-            else{
-                //bmsl=bmsl/2;
-                //bmsr=bmsr/2;
-                msl = 100;
-                msr = 150;
-                if(robot_verbose && VERBOSE){printf("Robot%d search wall (right)\n", robot_id_u);}
-            }
-
-        }
-        else{ // avoid to the left
-            if(ds_value[0]>1200){
-                msl = 150;
-                msr = 140;
-            }
-            else{
-                //bmsl=bmsl/2;
-                //bmsr=bmsr/2;
-                msl = 150;
-                msr = 100;
-                if(robot_verbose && VERBOSE){printf("Robot%d search wall (left)\n", robot_id_u);}
-            }
-        }
-    }
-
-    if(avoidance && max_sens<70){ //Exit condition of "avoidance
-        avoidance=0;
-        if(robot_verbose && VERBOSE){printf("LEAVE AVOIDANCE---------------\n");}
-    }
-
-    if(VERBOSE && 1 && robot_verbose){printf("Avec Priority: \nmsl=%d, msr=%d\n", msl, msr);}
-    // Add Braitenberg
-    if(VERBOSE && 1 && robot_verbose){printf("Avant addition:\nBmsl=%d, Bmsr=%d\n", bmsl, bmsr);}
-    msl += bmsl;
-    msr += bmsr;
-    limit(&msl,MAX_SPEED);
-    limit(&msr,MAX_SPEED);
-    if(VERBOSE && 1 && robot_verbose){printf("Final: \nmsl=%d, msr=%d\n", msl, msr);}
-    // Set speed
-    msl_w = msl*MAX_SPEED_WEB/(MAX_SPEED+1);
-    msr_w = msr*MAX_SPEED_WEB/(MAX_SPEED+1);
-    if(VERBOSE && 1 && robot_verbose){printf("Speed: \nmsl_w=%lf, msr_w=%lf\n", msl_w, msr_w);}
-    wb_motor_set_velocity(left_motor, msl_w);
-    wb_motor_set_velocity(right_motor, msr_w);
-
-    // Continue one step
-    wb_robot_step(TIME_STEP);
-
-    // Get current fitness value
-    // Average speed
-    fit_speed += (fabs(msl) + fabs(msr))/(2.0*MAX_SPEED);
-    // Difference in speed
-    fit_diff += fabs(msl - msr)/MAX_DIFF;
-    // Sensor values
-    for (i=0;i<NB_SENSORS;i++) {
-        sens_val[i] += ds_value[i]/MAX_SENS;
-    }
-  }
-  // Find most active sensor
-  for (i=0;i<NB_SENSORS;i++) {
-      if (sens_val[i] > fit_sens) fit_sens = sens_val[i];
-  }
-  // Average values over all steps
-  fit_speed /= SIM_STEPS;
-  fit_diff /= SIM_STEPS;
-  fit_sens /= SIM_STEPS;
-
-  // Better fitness should be higher
-  fitness = fit_speed*(1.0 - sqrt(fit_diff))*(1.0 - fit_sens);
-
-  return fitness;
-}
-
-//-------------MAIN------------//
 // the main function
-int main() {
-    double end_sim[255];
-    double *new_weights;
-    double fitness=-1;
-    reset();
-    wb_motor_set_velocity(left_motor, 0);  // Initialize robot velocity to zero
-    wb_motor_set_velocity(right_motor, 0); // Initialize robot velocity to zero
-    // wb_robot_step(TIME_STEP);
-    while (1) {
-        // Wait for data
-        while (wb_receiver_get_queue_length(rec_pso) == 0) {
+int main(){
+        printf("Simulation standard");
+        int msl, msr;			// Wheel speeds
+        float msl_w, msr_w;
+        int bmsl, bmsr, sum_sensors;	// Braitenberg parameters
+        int i;				// Loop counter
+        int ds_value[NB_SENSORS];	// Array for the distance sensor readings
+        int max_sens;			// Store highest sensor value
+        float priority; // non linear weight to prioritarize braitenberg
+        reset();			// Resetting the robot
+        msl = 0; msr = 0;
+        max_sens = 0;
+
+        // Forever
+        for(;;){
+
+            bmsl = 0; bmsr = 0;
+            sum_sensors = 0;
+            max_sens = 0;
+            if(VERBOSE && robot_verbose){printf("-------------------------\n");}
+            /* Braitenberg */
+            for(i=0;i<NB_SENSORS;i++) {
+                ds_value[i]=wb_distance_sensor_get_value(ds[i]); //Read sensor values
+                sum_sensors += ds_value[i]; // Add up sensor values
+                max_sens = max_sens>ds_value[i]?max_sens:ds_value[i]; // Check if new highest sensor value
+                if(VERBOSE&&1&&robot_verbose){printf("robot%d Sensor%d = %d\n", robot_id_u, i,ds_value[i]);}
+                // Weighted sum of distance sensor values for Braitenburg vehicle
+                bmsr += e_puck_matrix[i] * ds_value[i];//moi 2
+                bmsl += e_puck_matrix[i+NB_SENSORS] * ds_value[i];
+            }
+
+
+
+            // Adapt Braitenberg values (empirical tests)
+            bmsl/=MIN_SENS; bmsr/=MIN_SENS;
+            bmsl+=66; bmsr+=72;
+            if(VERBOSE && 1 && robot_verbose){printf("Bmsl=%d, Bmsr=%d\n", bmsl, bmsr);}
+            /* Send and get information */
+            send_ping();  // sending a ping to other robot, so they can measure their distance to this robot
+
+            /// Compute self position
+            prev_my_position[0] = my_position[0];
+            prev_my_position[1] = my_position[1];
+            printf("-----------------------Compute posiiton --------------------------------\n");
+            if(VERBOSE && 1 && robot_verbose){printf("\My position: x=%lf, y=%lf\n", my_position[0], my_position[1]);}
+            update_self_motion(msl,msr);
+            //update_self_motion_kalman();
+            
+
+
+            process_received_ping_messages();
+
+
+            speed[robot_id][0] = (1/DELTA_T)*(my_position[0]-prev_my_position[0]);
+            speed[robot_id][1] = (1/DELTA_T)*(my_position[1]-prev_my_position[1]);
+
+            // Reynold's rules with all previous info (updates the speed[][] table)
+            reynolds_rules();
+
+            // Compute wheels speed from reynold's speed
+            if(VERBOSE && 1 && robot_verbose){printf("Avant Reynodl: \nmsl=%d, msr=%d\n", msl, msr);}
+            compute_wheel_speeds(&msl, &msr);
+            if(VERBOSE && 1 && robot_verbose){printf("Avec Reynodl: \nmsl=%d, msr=%d\n", msl, msr);}
+
+
+            priority=2;
+            if ((ds_value[0]>2100 || ds_value[7]>2100) && !avoidance){ //Entry1 condition of "avoidance
+                 avoidance=1;
+                 // Avoid to the left or right ?
+                 if(ds_value[7] < ds_value[0]){
+                   side=0; // left
+                   if(robot_verbose){printf("Robot%d to left\n", robot_id_u);}
+                 }
+                 else{
+                   side=1; // right
+                   if(robot_verbose){printf("Robot%d to right\n", robot_id_u);}
+                 }
+            if(robot_verbose){printf("ENTER AVOIDANCE (front) --------------\n");}
+            }
+            else if ((ds_value[6]>2100 || ds_value[1]>2100) && !avoidance){ //Entry2 condition of "avoidance
+                 avoidance=1;
+                 // Avoid to the left or right ?
+                 if(ds_value[6] < ds_value[1]){
+                   side=0; // left
+                   if(robot_verbose){printf("Robot%d to left\n", robot_id_u);}
+                 }
+                 else{
+                   side=1; // right
+                   if(robot_verbose){printf("Robot%d to right\n", robot_id_u);}
+                 }
+
+                if(robot_verbose){printf("ENTER AVOIDANCE (Side) --------------\n");}
+            }
+            else if ((ds_value[5]>2100 || ds_value[2]>2100) && !avoidance){ //Entry2 condition of "avoidance
+               avoidance=1;
+               // Avoid to the left or right ?
+               if(ds_value[5] < ds_value[2]){
+                 side=0; // left
+                 if(VERBOSE && 1 && robot_verbose){printf("Robot%d to left\n", robot_id_u);}
+               }
+               else{
+                 side=1; // right
+                 if(VERBOSE && 1 && robot_verbose){printf("Robot%d to right\n", robot_id_u);}
+               }
+
+                if(VERBOSE && 1 && robot_verbose){printf("ENTER AVOIDANCE (Side) --------------\n");}
+            }
+
+
+            if (!avoidance){ // normal mode
+                msl -= msl*max_sens/(priority*MAX_SENS);
+                msr -= msr*max_sens/(priority*MAX_SENS);
+            }
+            else{ // avoidance mode
+                if(side){ // avoid to the right
+                    if(ds_value[7]>1300){
+                        msl = 140;
+                        msr = 150;
+                    }
+                    else{
+                        //bmsl=bmsl/2;
+                        //bmsr=bmsr/2;
+                        msl = 100;
+                        msr = 150;
+                        if(robot_verbose){printf("Robot%d search wall (right)\n", robot_id_u);}
+                    }
+
+                }
+                else{ // avoid to the left
+                    if(ds_value[0]>1200){
+                        msl = 150;
+                        msr = 140;
+                    }
+                    else{
+                        //bmsl=bmsl/2;
+                        //bmsr=bmsr/2;
+                        msl = 150;
+                        msr = 100;
+                        if(robot_verbose){printf("Robot%d search wall (left)\n", robot_id_u);}
+                    }
+                }
+            }
+
+            if(avoidance && max_sens<70){ //Exit condition of "avoidance
+                avoidance=0;
+                if(robot_verbose){printf("LEAVE AVOIDANCE---------------\n");}
+            }
+
+            if(VERBOSE && 1 && robot_verbose){printf("Avec Priority: \nmsl=%d, msr=%d\n", msl, msr);}
+            // Add Braitenberg
+            if(VERBOSE && 1 && robot_verbose){printf("Avant addition:\nBmsl=%d, Bmsr=%d\n", bmsl, bmsr);}
+            msl += bmsl;
+            msr += bmsr;
+            limit(&msl,MAX_SPEED);
+	 limit(&msr,MAX_SPEED);
+            if(VERBOSE && 1 && robot_verbose){printf("Final: \nmsl=%d, msr=%d\n", msl, msr);}
+            // Set speed
+            msl_w = msl*MAX_SPEED_WEB/(MAX_SPEED+1);
+            msr_w = msr*MAX_SPEED_WEB/(MAX_SPEED+1);
+            if(VERBOSE && 1 && robot_verbose){printf("Speed: \nmsl_w=%lf, msr_w=%lf\n", msl_w, msr_w);}
+            wb_motor_set_velocity(left_motor, msl_w);
+            wb_motor_set_velocity(right_motor, msr_w);
+
+            // Continue one step
             wb_robot_step(TIME_STEP);
-        }
-        if( 1 && robot_verbose){printf("************************ Weight ***************************\n");}
-        new_weights = (double *)wb_receiver_get_data(rec_pso);
-        if( 1 && robot_verbose){printf("Robot %d : %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf\n         %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf\n %.2lf, %.2lf, %.2lf, %.4lf, %.4lf\n----------------------------\n",robot_id, new_weights[0], new_weights[1],new_weights[2], new_weights[3], new_weights[4], new_weights[5],new_weights[6], new_weights[7],new_weights[7]+2, new_weights[6]+2, new_weights[5]+2, new_weights[4]+2, new_weights[3]+2, new_weights[2]+2, new_weights[1]+2, new_weights[0]+2, new_weights[8], new_weights[9],new_weights[10], new_weights[11], new_weights[12]);}
-        // run simulation
-        if(VERBOSE && 1 && robot_verbose){printf("Begin simulation robot%d...\n", robot_id);}
-        fitness = simulation_webot(new_weights);
-        if(VERBOSE && 1 && robot_verbose){printf("End simulation...\n");}
-        end_sim[0]=fitness;
-        wb_emitter_send(emit_pso,(void *)end_sim,sizeof(double));
-        wb_receiver_next_packet(rec_pso);
-        if( 1 && robot_verbose){printf("********************************************************\n");}
-    }
-    return 0;
+            }
+
 }
 
 
