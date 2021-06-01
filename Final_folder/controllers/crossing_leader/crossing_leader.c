@@ -12,9 +12,9 @@
 #include <float.h>
 
 
-#include "../localization_controller_test/utils.h"
-#include "../localization_controller_test/odometry.h"
-#include "../localization_controller_test/kalman.h"
+#include "../localization_controller/utils.h"
+#include "../localization_controller/odometry.h"
+#include "../localization_controller/kalman.h"
 
 
 #include <webots/robot.h>
@@ -35,7 +35,7 @@
 #define MAX_SPEED_WEB      6.28    // Maximum speed webots
 /*Webots 2018b*/
 #define TIME_STEP      64      // [ms] Length of time step
-#define AVOIDANCE_THRESH    800  // Threshold above which we enter obstacle avoidance
+#define AVOIDANCE_THRESH    1000  // Threshold above which we enter obstacle avoidance
 #define WHEEL_AXIS        0.057        // Distance between the two wheels in meter
 #define WHEEL_RADIUS            0.020        // Radius of the wheel in meter
 
@@ -116,7 +116,7 @@ static void reset() {
 
 
     dev_gps = wb_robot_get_device("gps");
-    wb_gps_enable(dev_gps, 1); // Enable GPS every 1000ms <=> 1s
+    wb_gps_enable(dev_gps, 1000); // Enable GPS every 1000ms <=> 1s
     time_step = wb_robot_get_basic_time_step();
     receiver = wb_robot_get_device("receiver");
     emitter = wb_robot_get_device("emitter");
@@ -343,15 +343,13 @@ int main() {
     for (;;) {
         // Get Position using Kalman
         time_step = wb_robot_get_basic_time_step();
-        // Position from GPS
+
         // Position with frame initial point stored in _pose vector
         controller_get_pose_gps();
 
         // Get the encoder values (wheel motor values)
         controller_get_encoder();
 
-        // Update gps measurements
-        controller_get_gps();
 
         /// Compute position from wheel encoders
         odo_compute_encoders(&_odo_enc, _meas.left_enc - _meas.prev_left_enc,
@@ -362,11 +360,12 @@ int main() {
 
         double time_now_s = wb_robot_get_time();
 
-
-
+         printf("ODO_x = %g, ODO_y =%g, ODO_heading =%g\n", _odo_enc.x, _odo_enc.y, RAD2DEG(_odo_enc.heading));
         // Kalman with wheel encoders
+        printf("pose_x = %g, pose_y =%g, pose_heading =%g\n", _pose.x, _pose.y, RAD2DEG(_pose.heading));
         compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, _meas.left_enc - _meas.prev_left_enc,
                               _meas.right_enc - _meas.prev_right_enc, _pose);
+        printf("_kal_wheel_x = %g, _kal_wheel_y =%g, _kal_wheel_heading =%g\n", _kal_wheel.x, _kal_wheel.y, RAD2DEG(_kal_wheel.heading));
 
 
         bmsl = 0;
@@ -472,6 +471,10 @@ void controller_get_pose_gps() {
 
 
     if (time_now_s - last_gps_time_s > 1.0f) {
+               // Update gps measurements
+                       // Position from GPS
+        controller_get_gps();
+        
 
         last_gps_time_s = time_now_s;
         // This is for the robot which is starting
@@ -532,7 +535,8 @@ double controller_get_heading_gps() {
     // Compute the heading of the robot
     double heading = atan2(delta_y, delta_x);
 
-    _meas.gps_heading[0] = heading;
+    //_meas.gps_heading[0] = heading;
+    printf("Heading GPS =%g\n", RAD2DEG(heading));
 
     return heading;
 }
@@ -585,7 +589,7 @@ bool controller_init_log(const char *filename) {
 
     if (!err) {
         fprintf(fp,
-                "time; pose_x; pose_y; pose_heading;  gps_x; gps_y; kal_wheel_x; kal_wheel_y; kal_wheel_heading; gps_heading\n");
+                "time; pose_x; pose_y; pose_heading;  gps_x; gps_y; gps_z; acc_x; acc_y; acc_z; right_enc; left_enc; odo_acc_x; odo_acc_y; odo_acc_heading; odo_enc_x; odo_enc_y; odo_enc_heading; kal_wheel_x; kal_wheel_y; kal_wheel_heading; kal_acc_x; kal_acc_y; kal_acc_heading\n");
 
     }
 
@@ -608,10 +612,10 @@ bool controller_init() {
 void controller_print_log(double time) {
 
     if (fp != NULL) {
-        fprintf(fp, "%g; %g; %g; %g; %g; %g; %g; %g; %g; %g\n",
+        fprintf(fp, "%g; %g; %g; %g; %g; %g; %g; %g; %g\n",
                 time, _pose.x, _pose.y, _pose.heading, _meas.gps[0], _meas.gps[2],
                 _kal_wheel.x,
-                _kal_wheel.y, _kal_wheel.heading, _meas.gps_heading[0]);
+                _kal_wheel.y, _kal_wheel.heading);
     }
 
 }
