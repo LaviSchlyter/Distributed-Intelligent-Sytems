@@ -355,17 +355,16 @@ int main() {
         odo_compute_encoders(&_odo_enc, _meas.left_enc - _meas.prev_left_enc,
                              _meas.right_enc - _meas.prev_right_enc);
 
-        int time_step_ = wb_robot_get_basic_time_step();
+        time_step = wb_robot_get_basic_time_step();
 
 
         double time_now_s = wb_robot_get_time();
 
-         printf("ODO_x = %g, ODO_y =%g, ODO_heading =%g\n", _odo_enc.x, _odo_enc.y, RAD2DEG(_odo_enc.heading));
+
         // Kalman with wheel encoders
-        printf("pose_x = %g, pose_y =%g, pose_heading =%g\n", _pose.x, _pose.y, RAD2DEG(_pose.heading));
-        compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, _meas.left_enc - _meas.prev_left_enc,
+
+        compute_kalman_wheels(&_kal_wheel, time_step, time_now_s, _meas.left_enc - _meas.prev_left_enc,
                               _meas.right_enc - _meas.prev_right_enc, _pose);
-        printf("_kal_wheel_x = %g, _kal_wheel_y =%g, _kal_wheel_heading =%g\n", _kal_wheel.x, _kal_wheel.y, RAD2DEG(_kal_wheel.heading));
 
 
         bmsl = 0;
@@ -534,9 +533,6 @@ double controller_get_heading_gps() {
 
     // Compute the heading of the robot
     double heading = atan2(delta_y, delta_x);
-
-    //_meas.gps_heading[0] = heading;
-    printf("Heading GPS =%g\n", RAD2DEG(heading));
 
     return heading;
 }
