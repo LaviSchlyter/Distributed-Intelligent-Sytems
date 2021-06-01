@@ -1,7 +1,3 @@
-/** Updated version 25.05 
-Check migration :)  ()
-**/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -173,17 +169,9 @@ void limit(int *number, int limit) {
 void update_self_motion(int msl, int msr) {
 
 	float theta = my_position[2];
-	// Compute deltas of the robot
-	//float dr = (float)msr * SPEED_UNIT_RADS * WHEEL_RADIUS * DELTA_T; //metres
 	float dr = (float)msr * SPEED_UNIT_RADS * DELTA_T; //radians
-	//float dl = (float)msl * SPEED_UNIT_RADS * WHEEL_RADIUS * DELTA_T;
 	float dl = (float)msl * SPEED_UNIT_RADS  * DELTA_T;
-	//float du = (dr + dl)/2.0* WHEEL_RADIUS; // added wheel rad to compare
-	//float dtheta = (dr - dl)/AXLE_LENGTH* WHEEL_RADIUS;
 
-	// Compute deltas in the environment
-	//float dx = -du * sinf(theta);
-	//float dz = -du * cosf(theta);
 	
 	int time_step_ = wb_robot_get_basic_time_step();
 	double time_now_s = wb_robot_get_time();
@@ -193,34 +181,18 @@ void update_self_motion(int msl, int msr) {
         // Position with frame initial point stored in _pose vector
         
         controller_get_pose_gps();
-        printf("pose_x = %g, pose_y = %g, heading =%g\n", _pose.x, _pose.y, RAD2DEG(_pose.heading));
-        printf("Kalman x =%g, y=%g, heading =%g\n", _kal_wheel.x, _kal_wheel.y, RAD2DEG(_kal_wheel.heading));
 	
+	// Update odometry with wheel encoders usng pose (GPS derived) 	
 	compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, dl,
                                        dr, _pose);
        
-
-	
   	my_position[0] = _kal_wheel.x;
   	my_position[1] = _kal_wheel.y;
   	my_position[2] = _kal_wheel.heading;
+  	
   	// Keep orientation within 0, 2pi
 	if (my_position[2] > 2*M_PI) my_position[2] -= 2.0*M_PI;
 	if (my_position[2] < 0) my_position[2] += 2.0*M_PI;
-	
-	printf("my_position X = %g, my_position_Y, my_position_heading =%g\n", my_position[0], my_position[1],RAD2DEG(my_position[2]));
-	
-        
-	// Update position VERY GROTESQUE ESTIMATION
-	//my_position[0] += dx;
-	//my_position[1] += dz;
-	//my_position[2] += dtheta;
-	
-
-	
-        
-	
-        
         
 }
 
@@ -237,9 +209,6 @@ void compute_wheel_speeds(int *msl, int *msr) {
 	float range = sqrtf(x*x + z*z);	  // Distance to the wanted position
 	float bearing = -atan2(x, z);	  // Orientation of the wanted position
 	
-	printf("Range to interest =%g\n", range);
-	printf("Bearing to interest =%g\n", RAD2DEG(bearing));
-
 	// Compute forward control
 	float u = Ku*range*cosf(bearing);
 	// Compute rotational controlcontroller_get_pose_gps
@@ -326,8 +295,7 @@ void reynolds_rules() {
 	  speed[robot_id][1] += 0.01*sin(my_position[2] + M_PI/2);
 	} 
 	else {
-        	printf("(migr[0] =%g my_position[0] = %g\n", migr[0],my_position[0]);
-        	printf("(migr[1] =%g my_position[1] = %g\n", migr[1],my_position[1]);
+        	
   	        speed[robot_id][0] += (migr[0]-my_position[0]) * MIGRATION_WEIGHT;
 		speed[robot_id][1] -= (migr[1]-my_position[1]) * MIGRATION_WEIGHT; //y axis of webots is inverted
   	        
