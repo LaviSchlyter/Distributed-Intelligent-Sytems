@@ -2,9 +2,6 @@
 #include <string.h>
 #include <math.h>
 
-// TODO: Do not use the GPS heading 
-// Done 31.05
-
 /*MACRO*/
 #define CATCH(X, Y)      X = X || Y
 #define CATCH_ERR(X, Y)  controller_error(X, Y, __LINE__, __FILE__)
@@ -51,7 +48,7 @@ static void controller_print_log(double time);
 
 static bool controller_error(bool test, const char *message, int line, const char *fileName);
 
-static measurement_t _meas; // See class above
+static measurement_t _meas; // See class in util.h
 double last_gps_time_s = 0.0f;
 int time_step; // Introduce the time step
 
@@ -72,14 +69,17 @@ void init_devices(int ts) {
     dev_acc = wb_robot_get_device("accelerometer");
     wb_accelerometer_enable(dev_acc, ts); // Time step frequency (ts)
 
-
+	
+    // Handler for wheel encoders
     dev_left_encoder = wb_robot_get_device("left wheel sensor");
     dev_right_encoder = wb_robot_get_device("right wheel sensor");
     wb_position_sensor_enable(dev_left_encoder, ts);
     wb_position_sensor_enable(dev_right_encoder, ts);
 
+    // Handler for wheel motor
     dev_left_motor = wb_robot_get_device("left wheel motor");
     dev_right_motor = wb_robot_get_device("right wheel motor");
+    
     wb_motor_set_position(dev_left_motor, INFINITY);
     wb_motor_set_position(dev_right_motor, INFINITY);
     wb_motor_set_velocity(dev_left_motor, 0.0);
@@ -129,8 +129,8 @@ int main() {
          if (!VERBOSE_CALIBRATION) {
 
                 
-                // Position from GPS
-                // Position with frame initial point stored in _pose vector
+                
+                // Updating the pose (thanks to GPS, every second)
                 controller_get_pose_gps();
         
         
@@ -140,12 +140,8 @@ int main() {
                 // Get the encoder values (wheel motor values)
                 controller_get_encoder();
                 double time_now_s = wb_robot_get_time();
-                int time_step_ = wb_robot_get_basic_time_step();
+                time_step = wb_robot_get_basic_time_step();
                 
-                printf("time_now = %f\n", time_now_s);
-                printf("meas_gps x = %g y=%g\n", _meas.gps[0],_meas.gps[2]);
-                printf("pose x = %g, y=%g heading =%g\n", _pose.x, _pose.y, RAD2DEG(_pose.heading));
-
                 /// Compute position from wheel encoders
                 odo_compute_encoders(&_odo_enc, _meas.left_enc - _meas.prev_left_enc,
                                      _meas.right_enc - _meas.prev_right_enc);
@@ -153,23 +149,18 @@ int main() {
                 /// Compute position from accelerometer with heading from wheel encoders
                 odo_compute_acc(&_odo_acc, _meas.acc, _meas.acc_mean, _odo_enc.heading);
 
-                
+                // Current time in seconds
                 time_now_s = wb_robot_get_time();
-                //if (time_now_s > 2) {
-                // This is done in order to ensure that the gps_prev and gps_ do not have nan values as they
-                // are updated only every second 
-                // The nan cause problems in the heading because of delta_x, delta_y
+
                 
                 // Kalman with accelerometer
-                compute_kalman_acc(&_kal_acc, time_step_, time_now_s, _odo_enc.heading, _meas, _pose);
+                compute_kalman_acc(&_kal_acc, time_step, time_now_s, _odo_enc.heading, _meas, _pose);
                 
 
                 // Kalman with wheel encoders
-                compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, _meas.left_enc - _meas.prev_left_enc,
+                compute_kalman_wheels(&_kal_wheel, time_step, time_now_s, _meas.left_enc - _meas.prev_left_enc,
                                       _meas.right_enc - _meas.prev_right_enc, _pose);
                                       
-                                      
-                 //}
 
             }
 
@@ -208,8 +199,8 @@ void controller_get_pose_gps() {
 
 
     if (time_now_s - last_gps_time_s > 1.0f) {
-             // Update gps measurements
-                controller_get_gps();
+         // Update gps measurements every second 
+         controller_get_gps();
 
         last_gps_time_s = time_now_s;
 
@@ -218,8 +209,9 @@ void controller_get_pose_gps() {
         _pose.y = -(_meas.gps[2] - _pose_origin.y);
         
         _pose.heading = -controller_get_heading_gps() + _pose_origin.heading;
-        //if (VERBOSE_ROBOT_POSE)
+        if (VERBOSE_ROBOT_POSE) {
           printf("ROBOT pose : %g %g %g\n", _pose.x, _pose.y, RAD2DEG(_pose.heading));
+          }
     }
 }
 
@@ -229,8 +221,6 @@ void controller_get_pose_gps() {
  */
 
 void controller_get_gps() {
-    printf("_meas GPS x = %g , y = %g\n", _meas.gps[0], _meas.gps[2]);
-    printf("PREV_meas GPS x = %g , y = %g\n", _meas.prev_gps[0], _meas.prev_gps[2]);
 
     /// Stores in memory at address of _meas.prev_gps; the data of _meas.gps
     memcpy(_meas.prev_gps, _meas.gps, sizeof(_meas.gps));
@@ -250,7 +240,6 @@ void controller_get_gps() {
  */
 double controller_get_heading_gps() {
     // Orientation of the robot
-    printf("_meas.gps[0] =%g - _meas.prev_gps[0] = %g\n", _meas.gps[0],_meas.prev_gps[0]);
     double delta_x = _meas.gps[0] - _meas.prev_gps[0];
 
     double delta_y = _meas.gps[2] - _meas.prev_gps[2];
@@ -258,8 +247,6 @@ double controller_get_heading_gps() {
     // Compute the heading of the robot
     double heading = atan2(delta_y, delta_x);
     
-    printf("HEDAING GPS =%g\n", heading);
-
     return heading;
 }
 
