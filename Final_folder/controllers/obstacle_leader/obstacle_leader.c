@@ -13,7 +13,13 @@
 #include <math.h>
 #include <string.h>
 
+#include "../localization_controller/utils.h"
+#include "../localization_controller/odometry.h"
+#include "../localization_controller/kalman.h"
+
 #include <webots/robot.h>
+#include <webots/gps.h>
+#include <webots/position_sensor.h>
 /*Webots 2018b*/
 #include <webots/motor.h>
 /*Webots 2018b*/
@@ -30,18 +36,45 @@
 /*Webots 2018b*/
 #define TIME_STEP	  64	  // [ms] Length of time step
 #define AVOIDANCE_THRESH    1800  // Threshold above which we enter obstacle avoidance
+#define WHEEL_AXIS        0.057        // Distance between the two wheels in meter
+#define WHEEL_RADIUS            0.020        // Radius of the wheel in meter
 
 //States of FSM
 #define AVOIDANCE 0
 #define MIGRATION 1
+// You can control the speed here
+#define MIGRATION_WEIGHT  0.6   // Weight of attraction towards the common goal
 
+/*MACRO*/
+#define CATCH(X, Y)      X = X || Y
+#define CATCH_ERR(X, Y)  controller_error(X, Y, __LINE__, __FILE__)
+static FILE *fp;
+
+/*VARIABLES*/
+static bool controller_init_log(const char *filename);
+
+static bool controller_init();
+
+static void controller_print_log(double time);
+
+static bool controller_error(bool test, const char *message, int line, const char *fileName);
+
+double migr[2] = {4.4, -0.45};
+
+static pose_t _pose, _odo_enc, _kal_wheel;
+// Initial robot position
+static pose_t _pose_origin = {-1.97889, 0.000149883, 0.0};
+static double speed[2];                 // Speed calculated for migration
 
 /*Webots 2018b*/
+WbDeviceTag dev_gps; // GPS handler
 WbDeviceTag left_motor; //handler for left wheel of the robot
 WbDeviceTag right_motor; //handler for the right wheel of the robot
+WbDeviceTag left_encoder;//handler for left encoder of the robot
+WbDeviceTag right_encoder;//handler for right encoder of the robot
 /*Webots 2018b*/
 
-int e_puck_matrix[2*NB_SENSORS] = {17,29,34,10,8,-38,-56,-76,-72,-58,-36,8,10,36,28,18}; // for obstacle avoidance
+int e_puck_matrix[16] = {17,29,34,10,8,-38,-56,-76,-72,-58,-36,8,10,36,28,18}; // for obstacle avoidance
 
 WbDeviceTag ds[NB_SENSORS];	// Handle for the infrared distance sensors
 WbDeviceTag receiver;	// Handle for the receiver node
@@ -52,19 +85,44 @@ char* robot_name;
 
 int fsm_state;               // leader's state of the FSM (avoidance or migration)
 
+
+static double time_step;                  // Time step
+static measurement_t _meas; // See class in util
+static double last_gps_time_s = 0.0f;
+
+/*FUNCTIONS*/
+// Make static to limit its scope
+
+static void controller_get_pose_gps();
+
+static void controller_get_gps();
+
+static double controller_get_heading_gps();
+
+static void controller_get_encoder();
+
 /*
  * Reset the robot's devices and get its ID
  */
 static void reset() {
 	wb_robot_init();
+	dev_gps = wb_robot_get_device("gps");
+        wb_gps_enable(dev_gps, 1); // Enable GPS every 1000ms <=> 1s
+        time_step = wb_robot_get_basic_time_step();
 	receiver = wb_robot_get_device("receiver");
 	emitter = wb_robot_get_device("emitter");
 	
+	    //get encoders
+          left_encoder = wb_robot_get_device("left wheel sensor");
+          right_encoder = wb_robot_get_device("right wheel sensor");
+          wb_position_sensor_enable(left_encoder, time_step);
+          wb_position_sensor_enable(right_encoder, time_step);
+	
 	//get motors
 	left_motor = wb_robot_get_device("left wheel motor");
-    right_motor = wb_robot_get_device("right wheel motor");
-    wb_motor_set_position(left_motor, INFINITY);
-    wb_motor_set_position(right_motor, INFINITY);
+        right_motor = wb_robot_get_device("right wheel motor");
+        wb_motor_set_position(left_motor, INFINITY);
+        wb_motor_set_position(right_motor, INFINITY);
 	
 	int i;
 	char s[4]="ps0";
@@ -171,6 +229,34 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
     }
 }
 
+/*
+ * Computes wheel speed given a certain X,Z speed
+ */
+void compute_wheel_speeds(int *msl, int *msr) {
+    // Compute wanted position from Reynold's speed and current location
+
+    float x = speed[0] * cosf(_kal_wheel.heading) + speed[1] * sinf(_kal_wheel.heading); // x in robot coordinates
+    float z = -speed[0] * sinf(_kal_wheel.heading) + speed[1] * cosf(_kal_wheel.heading); // z in robot coordinate
+
+    float Ku = 0.2;   // Forward control coefficient
+    float Kw = 0.5;  // Rotational control coefficient
+    float range = sqrtf(x * x + z * z);      // Distance to the wanted position
+    float bearing = atan2(z, x);      // Orientation of the wanted position
+
+    // Compute forward control
+    float u = Ku * range * cosf(bearing);
+    // Compute rotational control
+    float w = Kw * bearing;
+
+    // Convert to wheel speeds!
+    *msl = (u - WHEEL_AXIS * w / 2.0) * (1000.0 / WHEEL_RADIUS);
+    *msr = (u + WHEEL_AXIS * w / 2.0) * (1000.0 / WHEEL_RADIUS);
+    limit_and_rescale(msl, msr, MAX_SPEED);
+}
+
+
+
+
 
 
 /*
@@ -197,12 +283,36 @@ int main(){
         int max_sens;                   // Store highest sensor value
 
         reset();                    // Resetting the robot
+        odo_reset(time_step);
+    if (CATCH_ERR(controller_init(), "Controller fails to init \n"))
+        return 1;
         
         // initial state: migartion
         fsm_state = MIGRATION;
 
         // Forever
         for(;;){
+        
+        // Get Position using Kalman
+            time_step = wb_robot_get_basic_time_step();
+    
+            // Position with frame initial point stored in _pose vector
+            controller_get_pose_gps();
+    
+            // Get the encoder values (wheel motor values)
+            controller_get_encoder();
+    
+    
+            /// Compute position from wheel encoders
+            odo_compute_encoders(&_odo_enc, _meas.left_enc - _meas.prev_left_enc,
+                                 _meas.right_enc - _meas.prev_right_enc);
+    
+            int time_step_ = wb_robot_get_basic_time_step();
+    
+    
+            double time_now_s = wb_robot_get_time();
+            compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, _meas.left_enc - _meas.prev_left_enc,
+                              _meas.right_enc - _meas.prev_right_enc, _pose);
             
             bmsl = 0; bmsr = 0;
             sum_sensors = 0;
@@ -233,28 +343,20 @@ int main(){
               }
             
             if (fsm_state == MIGRATION){ //migration
+            
+            
+                double tmp_x = (migr[0] - _kal_wheel.x);
+                double tmp_z = (migr[1] - _kal_wheel.y);
+
+                speed[0] = tmp_x * MIGRATION_WEIGHT;
+                speed[1] = tmp_z * MIGRATION_WEIGHT;
                 
-                /*
-                 ----------------------------------------------------------------------
-                 ----------------------------------------------------------------------
-                 -------------------    Lavi put your code here   ---------------------
-                 ----------------------------------------------------------------------
-                 ----------------------------------------------------------------------
-                 
-                 You have to find the right msl and msr to go towards the goal
-                 Replace "msl=200 and msr=200" by what your algo gives you
-                 */
                 
-                msl=200;
-                msr=200;
+                compute_wheel_speeds(&msl, &msr);
+                //msl=200;
+                //msr=200;
                 
-                /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                ----------------------------------------------------------------------
-                ----------------------------------------------------------------------
-                -------------------    Lavi put your code here   ---------------------
-                ----------------------------------------------------------------------
-                ----------------------------------------------------------------------
-                */
+               
                 
             }
             else{ //avoidance state --- do only braitenberg
@@ -276,13 +378,186 @@ int main(){
             if((fsm_state == AVOIDANCE) && (max_sens < 70)){ //Exit condition of "avoidance
                 fsm_state = MIGRATION;
             }
+            controller_print_log(wb_robot_get_time());
 
             // Continue one step --> on change de robot!
             wb_robot_step(TIME_STEP);
          }
+             if (fp != NULL)
+                  fclose(fp);
  }
     
     
+    
+
+// Functions used for Kalman
+
+void controller_get_pose_gps() {
+
+    double time_now_s = wb_robot_get_time();
+
+
+    if (time_now_s - last_gps_time_s > 1.0f) {
+        // Update gps measurements
+        // Position from GPS
+        controller_get_gps();
+        
+
+        last_gps_time_s = time_now_s;
+       
+         _pose.x = _meas.gps[0] - _pose_origin.x;
+         _pose.y = -(_meas.gps[2] - _pose_origin.y); // inverted axis 
+
+            //_pose.x = (_meas.gps[0] - _pose_origin_R.x)*cosf(_pose_origin_R.heading) +(_meas.gps[2] - _pose_origin_R.y)*sinf(_pose_origin_R.heading);
+
+            //_pose.y = (_meas.gps[0] - _pose_origin_R.x)*sinf(_pose_origin_R.heading) +(_meas.gps[2] - _pose_origin_R.y)*cosf(_pose_origin_R.heading);
+
+         _pose.heading = -controller_get_heading_gps() + _pose_origin.heading;
+         
+         printf("Pose inside update: X = %g, Y = %g, HEAD = %g\n", _pose.x, _pose.y, _pose.heading);
+         printf("GPS X=%g, Y=%g\n", _meas.gps[0], _meas.gps[2]);
+
+        }
+
+}
+
+
+/**
+ *
+ * @brief Get the GPS measurements for position of robots
+ */
+
+void controller_get_gps() {
+
+    /// Stores in memory at address of _meas.prev_gps; the data of _meas.gps
+    memcpy(_meas.prev_gps, _meas.gps, sizeof(_meas.gps));
+
+    // Get position
+    const double *gps_position = wb_gps_get_values(dev_gps);
+
+    // Stores in memory at address of _meas.gps, the data of computed gps_position
+    memcpy(_meas.gps, gps_position, sizeof(_meas.gps));
+
+
+}
+
+/**
+ * @brief      Compute the heading (orientation) of the robot based on the gps position values.
+ *
+ * @return     return the computed angle in radians
+ */
+double controller_get_heading_gps() {
+    // Orientation of the robot
+    double delta_x = _meas.gps[0] - _meas.prev_gps[0];
+
+    double delta_y = _meas.gps[2] - _meas.prev_gps[2];
+
+    // Compute the heading of the robot
+    double heading = atan2(delta_y, delta_x);
+
+    return heading;
+}
+
+
+/**
+ * @brief      Read the encoders values from the sensors
+ */
+void controller_get_encoder() {
+    // Store previous value of the left encoder
+    _meas.prev_left_enc = _meas.left_enc;
+
+
+    _meas.left_enc = wb_position_sensor_get_value(left_encoder);
+
+    // If nan // That is you are at the first itteration
+    if (isnan(_meas.left_enc)) {
+        _meas.left_enc = 0.0;
+
+        ;
+    }
+
+    // Store previous value of the right encoder
+    _meas.prev_right_enc = _meas.right_enc;
+
+
+    _meas.right_enc = wb_position_sensor_get_value(right_encoder);
+
+    if (isnan(_meas.right_enc)) {
+        _meas.right_enc = 0.0;
+
+        ;
+    }
+
+}
+
+
+/**
+ * @brief      Initialize the logging of the file
+ *
+ * @param[in]  filename  The filename to write
+ *
+ * @return     return true if it fails
+ */
+bool controller_init_log(const char *filename) {
+    fp = fopen(filename, "w");
+
+
+    bool err = CATCH_ERR(fp == NULL, "Fails to create a log file\n");
+
+    if (!err) {
+        fprintf(fp,
+                "time; pose_x; pose_y; pose_heading;  gps_x; gps_y; gps_z; acc_x; acc_y; acc_z; right_enc; left_enc; odo_acc_x; odo_acc_y; odo_acc_heading; odo_enc_x; odo_enc_y; odo_enc_heading; kal_wheel_x; kal_wheel_y; kal_wheel_heading; kal_acc_x; kal_acc_y; kal_acc_heading\n");
+
+    }
+
+    return err;
+}
+
+
+bool controller_init() {
+    bool err = false;
+    char filename[64];
+    sprintf(filename, "log_file_robot%d.csv", robot_id_u);
+    CATCH(err, controller_init_log(filename));
+    return err;
+}
+
+/**
+ *
+ * @brief Printing onto log file variables of interest
+ */
+void controller_print_log(double time) {
+
+    if (fp != NULL) {
+        fprintf(fp, "%g; %g; %g; %g; %g; %g; %g; %g; %g\n",
+                time, _pose.x, _pose.y, _pose.heading, _meas.gps[0], _meas.gps[2],
+                _kal_wheel.x,
+                _kal_wheel.y, _kal_wheel.heading);
+    }
+
+}
+
+/**
+ * @brief      Do an error test if the result is true write the message in the stderr.
+ *
+ * @param[in]  test     The error test to run
+ * @param[in]  message  The error message
+ *
+ * @return     true if there is an error
+ */
+bool controller_error(bool test, const char *message, int line, const char *fileName) {
+    if (test) {
+        char buffer[256];
+
+        sprintf(buffer, "file : %s, line : %d,  error : %s", fileName, line, message);
+
+        fprintf(stderr, buffer);
+
+        return (true);
+    }
+
+    return false;
+}
     
     
     
