@@ -3,7 +3,6 @@
 #include <math.h>
 #include <stdbool.h>
 #include "odometry.h"
-// 16.05 changed sin to sinf
 
 // Code with minor changes taken from Lab03 DIS-EPFL
 //-----------------------------------------------------------------------------------//
@@ -71,23 +70,20 @@ void odo_compute_encoders(pose_t* odo, double Aleft_enc, double Aright_enc)
 
 	Aright_enc *= WHEEL_RADIUS;
 	
-	printf("Aright_enc = %g\n",Aright_enc );
-
 	// Compute forward speed and angular speed
 	double omega = ( Aright_enc - Aleft_enc ) / ( WHEEL_AXIS * _T );
-	printf("omega = %g\n",omega );
 	
 	double speed = ( Aright_enc + Aleft_enc ) / ( 2.0 * _T );
 
 	// Apply rotation (Body to World)
 
         double a =_odo_pose_enc.heading;
-        printf("heading = %g\n",_odo_pose_enc.heading );
 
 	double speed_wx = speed * cos(a);
 
 	double speed_wy = speed * sin(a);
 	
+	/// Remove abusrd starting values
 	if (Aleft_enc <0.30 & Aright_enc < 0.3) {
 	
 
