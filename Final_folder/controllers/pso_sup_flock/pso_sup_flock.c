@@ -625,8 +625,8 @@ void pso(double best_weight[DATASIZE]){
    wb_supervisor_set_label(0,label,0.01,0.01,0.1,0xffffff,0,FONT);
 }
 
-int main() {
 
+int main() {
   reset();
   double best_weight[DATASIZE]; // best solution of pso
   double fit, w[ROBOTS][DATASIZE], f[ROBOTS];

@@ -16,9 +16,7 @@
 #include "../localization_controller/odometry.h"
 #include "../localization_controller/kalman.h"
 
-
-
-#define VERBOSE           1
+#define VERBOSE           0
 #define NB_SENSORS	     8	  // Number of distance sensors
 #define MIN_SENS          350     // Minimum sensibility value
 #define MAX_SENS          4096    // Maximum sensibility value

@@ -94,11 +94,11 @@ static double time_step;                  // Time step
 static measurement_t _meas; // See class in util
 static double last_gps_time_s = 0.0f;
 // Initial robot positions (x, theta, y) --> in pose (x,y,heading)
-static pose_t _pose_origin_robot_0 = {-2.9, 0.0, 0};
-static pose_t _pose_origin_robot_1 = {-2.9, 0.1, 0};
-static pose_t _pose_origin_robot_2 = {-2.9, -0.1, 0};
-static pose_t _pose_origin_robot_3 = {-2.9, 0.2, 0};
-static pose_t _pose_origin_robot_4 = {-2.9, -0.2, 0};
+pose_t _pose_origin_robot_0 = {-2.9, 0.0, 0};
+pose_t _pose_origin_robot_1 = {-2.9, 0.1, 0};
+pose_t _pose_origin_robot_2 = {-2.9, -0.1, 0};
+pose_t _pose_origin_robot_3 = {-2.9, 0.2, 0};
+pose_t _pose_origin_robot_4 = {-2.9, -0.2, 0};
 
 static pose_t _pose, _odo_enc, _kal_wheel;
 static void controller_get_pose_gps();
@@ -356,7 +356,7 @@ void process_received_ping_messages(void) {
 		relative_pos[other_robot_id][0] = range*cos(theta);  // relative x pos
 		relative_pos[other_robot_id][1] = -1.0 * range*sin(theta);   // relative y pos
 
-		printf("Robot %s, from robot %d, x: %g, y: %g, theta %g, my theta %g\n",robot_name,other_robot_id,relative_pos[other_robot_id][0],relative_pos[other_robot_id][1],-atan2(y,x)*180.0/3.141592,my_position[2]*180.0/3.141592);
+		//printf("Robot %s, from robot %d, x: %g, y: %g, theta %g, my theta %g\n",robot_name,other_robot_id,relative_pos[other_robot_id][0],relative_pos[other_robot_id][1],-atan2(y,x)*180.0/3.141592,my_position[2]*180.0/3.141592);
 
 		relative_speed[other_robot_id][0] = relative_speed[other_robot_id][0]*0.0 + 1.0*(1/DELTA_T)*(relative_pos[other_robot_id][0]-prev_relative_pos[other_robot_id][0]);
 		relative_speed[other_robot_id][1] = relative_speed[other_robot_id][1]*0.0 + 1.0*(1/DELTA_T)*(relative_pos[other_robot_id][1]-prev_relative_pos[other_robot_id][1]);
@@ -390,7 +390,7 @@ double simulation_webot(double weights[DATASIZE]){
     }
 
 
-  // Update intial position TODO init with GPS (NB: add 2 step of sim to init GPS)
+  // Update intial position TODO 
   my_position[0]=0;
   my_position[1]=0;
   my_position[2]=0;
@@ -607,7 +607,7 @@ void controller_get_pose_gps() {
 
     if (time_now_s - last_gps_time_s > 1.0f) {
         controller_get_gps();
-        printf("\nEntered pose computation\n");
+        //printf("\nEntered pose computation\n");
 
         last_gps_time_s = time_now_s;
         // This is for the robot which is starting 
@@ -625,7 +625,7 @@ void controller_get_pose_gps() {
         _pose.y = -(_meas.gps[2] - _pose_origin_robot_1.y);
 
         _pose.heading = -controller_get_heading_gps() + _pose_origin_robot_1.heading;
-        printf("Entered pose heading =%lf\n", _pose.heading);
+        //printf("Entered pose heading =%lf\n", _pose.heading);
         
         } 
         else if (robot_id_u == 2) {
@@ -634,7 +634,7 @@ void controller_get_pose_gps() {
         _pose.y = -(_meas.gps[2] - _pose_origin_robot_2.y);
 
         _pose.heading = -controller_get_heading_gps() + _pose_origin_robot_2.heading;
-        printf("Entered pose heading =%lf\n", _pose.heading);
+        //printf("Entered pose heading =%lf\n", _pose.heading);
         
         } 
          
@@ -644,7 +644,7 @@ void controller_get_pose_gps() {
         _pose.y = -(_meas.gps[2] - _pose_origin_robot_3.y);
 
         _pose.heading = -controller_get_heading_gps() + _pose_origin_robot_3.heading;
-        printf("Entered pose heading =%lf\n", _pose.heading);
+        //printf("Entered pose heading =%lf\n", _pose.heading);
         
         }
         else if (robot_id_u == 4){
@@ -657,7 +657,7 @@ void controller_get_pose_gps() {
 
         _pose.heading = -controller_get_heading_gps() + _pose_origin_robot_4.heading;
         
-         printf("Entered pose heading =%lf\n", _pose.heading);
+         //printf("Entered pose heading =%lf\n", _pose.heading);
         
         }
         
@@ -682,8 +682,8 @@ void controller_get_gps() {
 
     // Stores in memory at address of _meas.gps, the data of computed gps_position
     memcpy(_meas.gps, gps_position, sizeof(_meas.gps));
-    printf("_meas GPS x = %g , y = %g\n", _meas.gps[0], _meas.gps[2]);
-    printf("PREV_meas GPS x = %g , y = %g\n", _meas.prev_gps[0], _meas.prev_gps[2]);
+    //printf("_meas GPS x = %g , y = %g\n", _meas.gps[0], _meas.gps[2]);
+    //printf("PREV_meas GPS x = %g , y = %g\n", _meas.prev_gps[0], _meas.prev_gps[2]);
 
     
     //printf("GPSx = %g, GPSy = %g\n", _meas.gps[0], _meas.gps[2]);
