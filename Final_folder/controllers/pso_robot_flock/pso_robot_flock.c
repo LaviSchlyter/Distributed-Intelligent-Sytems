@@ -44,6 +44,7 @@
 // PSO
 #define SIM_STEPS 600                   // number of simulation steps/iterations
 #define DATASIZE NB_SENSORS+5         // Number of elements in particle (2 Neurons with 8 proximity sensors and 5 params for flocking)
+#define SCALING_REYNOLD 1000
 
 // Reynolds
 #define RULE1_THRESHOLD     0.2   // Threshold to activate aggregation rule. default 0.20
@@ -114,7 +115,7 @@ static double controller_get_heading_gps();
 static void reset() {
 	wb_robot_init();
 	dev_gps = wb_robot_get_device("gps");
-        wb_gps_enable(dev_gps, 1000); // Enable GPS every 1000ms <=> 1s
+        wb_gps_enable(dev_gps, 1); // Enable GPS every 1000ms <=> 1s
 	time_step = wb_robot_get_basic_time_step();
 	receiver = wb_robot_get_device("receiver");
 	emitter = wb_robot_get_device("emitter");
@@ -207,7 +208,7 @@ void update_self_motion(int msl, int msr) {
   	// Keep orientation within 0, 2pi
 	if (my_position[2] > 2*M_PI) my_position[2] -= 2.0*M_PI;
 	if (my_position[2] < 0) my_position[2] += 2.0*M_PI;
-        
+           printf("Robot %d heading %lf\n", robot_id, RAD2DEG(my_position[2]));
 }
 
 /*
@@ -366,7 +367,7 @@ void process_received_ping_messages(void) {
 }
 
 // Find the fitness for obstacle avoidance of the passed controller
-double simulation_webot(double weights[DATASIZE]){
+double simulation_webot(double weights[DATASIZE+1]){
 
   if(VERBOSE && 1 && robot_verbose){printf("Simulation standard\n");}
   int msl, msr;			// Wheel speeds
@@ -390,7 +391,7 @@ double simulation_webot(double weights[DATASIZE]){
     }
 
 
-  // Update intial position TODO 
+  // Update intial position  
   my_position[0]=0;
   my_position[1]=0;
   my_position[2]=0;
@@ -434,7 +435,7 @@ double simulation_webot(double weights[DATASIZE]){
     speed[robot_id][1] = (1/DELTA_T)*(my_position[1]-prev_my_position[1]);
 
     // Reynold's rules with all previous info (updates the speed[][] table)
-    reynolds_rules(weights[NB_SENSORS], weights[NB_SENSORS+1], weights[NB_SENSORS+2], weights[NB_SENSORS+3], weights[NB_SENSORS+4]);
+    reynolds_rules(weights[NB_SENSORS]/SCALING_REYNOLD, weights[NB_SENSORS+1]/SCALING_REYNOLD, weights[NB_SENSORS+2]/SCALING_REYNOLD, weights[NB_SENSORS+3]/SCALING_REYNOLD, weights[NB_SENSORS+4]/SCALING_REYNOLD);
 
     // Compute wheels speed from reynold's speed
     if(VERBOSE && 1 && robot_verbose){printf("Avant Reynodl: \nmsl=%d, msr=%d\n", msl, msr);}
@@ -585,6 +586,14 @@ int main() {
         }
         if( 1 && robot_verbose){printf("************************ Weight ***************************\n");}
         new_weights = (double *)wb_receiver_get_data(rec_pso);
+        
+        _pose_origin_robot_0.y = new_weights[DATASIZE];
+        _pose_origin_robot_1.y = new_weights[DATASIZE];
+        _pose_origin_robot_2.y = new_weights[DATASIZE];
+        _pose_origin_robot_3.y = new_weights[DATASIZE];
+        _pose_origin_robot_4.y = new_weights[DATASIZE];
+        controller_get_pose_gps();
+        
         if( 1 && robot_verbose){printf("Robot %d : %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf\n         %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf\n %.2lf, %.2lf, %.2lf, %.4lf, %.4lf\n----------------------------\n",robot_id, new_weights[0], new_weights[1],new_weights[2], new_weights[3], new_weights[4], new_weights[5],new_weights[6], new_weights[7],new_weights[7]+2, new_weights[6]+2, new_weights[5]+2, new_weights[4]+2, new_weights[3]+2, new_weights[2]+2, new_weights[1]+2, new_weights[0]+2, new_weights[8], new_weights[9],new_weights[10], new_weights[11], new_weights[12]);}
         // run simulation
         if(VERBOSE && 1 && robot_verbose){printf("Begin simulation robot%d...\n", robot_id);}

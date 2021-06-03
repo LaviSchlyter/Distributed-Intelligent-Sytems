@@ -28,47 +28,47 @@
 #endif
 
 #define FONT "Arial"
-#define NB_INIT_POS 5 // number of fixed pos
+#define NB_INIT_POS 5                   // number of fixed pos
 #define FLOCK_SIZE 5
 #define ROBOTS 1
 #define ROB_RAD 0.035
-#define WHEEL_RADIUS 0.0205	// Wheel radius (meters)
-#define MAX_SPEED  6.28        // maximum speed of the robots
+#define WHEEL_RADIUS 0.0205	        // Wheel radius (meters)
+#define MAX_SPEED  6.28                 // maximum speed of the robots
 #define NB_SENSORS 8
-#define TIME_STEP	64		// [ms] Length of time step
+#define TIME_STEP	64	        // [ms] Length of time step
 
 /* PSO definitions */
-#define NB_PARTICLE 15                 // Number of particles in swarm
-#define MIN_WEIGHT_REYNOLD 0.00001      // Minimum of a particles weight/threshold for one of reynold's rule
-#define MAX_WEIGHT_REYNOLD 0.1          // Maximum of a particles weight/threshold for one of reynold's rule
+#define NB_PARTICLE 9                   // Number of particles in swarm
+#define MIN_WEIGHT_REYNOLD 900          // Minimum of a particles weight/threshold for one of reynold's rule
+#define MAX_WEIGHT_REYNOLD 0            // Maximum of a particles weight/threshold for one of reynold's rule
 #define MIN_WEIGHT_BRAITEN -200         // Minimum of a particles weight for braiten
-#define MAX_WEIGHT_BRAITEN 200         // Maximum of a particles weight for braiten
-#define PRIOR_KNOWLEDGE 1
+#define MAX_WEIGHT_BRAITEN 200          // Maximum of a particles weight for braiten
+#define PRIOR_KNOWLEDGE 0
 
-#define NB_NEIGHBOURS 4                 // Number of neighbors on each side
+#define NB_NEIGHBOURS 2                 // Number of neighbors on each side
 #define LWEIGHT 2.0                     // Weight of attraction to personal best
 #define NBWEIGHT 4.0                    // Weight of attraction to neighborhood best
-#define DAMPING 0.7                     // damping of the particle velocity
+#define DAMPING 0.6                     // damping of the particle velocity
 #define VMAX 30.0                       // Maximum velocity of particles by default
-#define VMAX_REYNOLD  0.1               // Maximum velocity of particles for  reynold
+#define VMAX_REYNOLD 30                 // Maximum velocity of particles for  reynold
+#define VMAX_TUNE 0
 
-
-#define MIN_BRAITEN -200.0               // Lower bound on initialization value for braiten
-#define MAX_BRAITEN 200.0                // Upper bound on initialization value for braiten
-#define MIN_REYNOLDS 0.001              // Lower bound on initialization value for reynolds
-#define MAX_REYNOLDS 0.2                // Upper bound on initialization value for reynolds
-#define ITS_PSO 20                      // Number of iterations to run
-#define DATASIZE NB_SENSORS+5         // Number of elements in particle (2 Neurons with 8 proximity sensors and 5 params for flocking)
+#define MIN_BRAITEN -200.0              // Lower bound on initialization value for braiten
+#define MAX_BRAITEN 200.0               // Upper bound on initialization value for braiten
+#define MIN_REYNOLDS 1                  // Lower bound on initialization value for reynolds
+#define MAX_REYNOLDS 1000               // Upper bound on initialization value for reynolds
+#define ITS_PSO 40                      // Number of iterations to run
+#define DATASIZE NB_SENSORS+5           // Number of elements in particle (2 Neurons with 8 proximity sensors and 5 params for flocking)
 #define FINALRUNS 1
 #define N_RUNS 1
-#define WEIGHT_DFL 4
-#define WEIGHT_V 1/2
-#define WEIGHT_FIT_OBSTACLE 1/4/10
+#define WEIGHT_DFL 1
+#define WEIGHT_V 1
+#define WEIGHT_FIT_OBSTACLE 1
 #define WEIGHT_FIT_FLOCKING 1
 
 
 /* Initial position of robots */
-#define RND_POS 1               // Initialize weight with 'set_init_pos'
+#define RND_POS 1         // Initialize weight with 'set_init_pos'
 
 
 /* Types of fitness evaluations */
@@ -106,9 +106,9 @@ char label2[20];
 // initial set of weight for pso
 double prior_knowledge[DATASIZE] = {17,29,34,10,8,-60,-64,-84, // Braitenberg right
                         //-80,-66,-62,8,10,36,28,18, // Braitenberg left
-                        0.2, (0.6/10),      // rule1_tresh, rule1_weight
-                        0.15, (0.02/10),    // rule2_tresh, rule2_weight
-                        (0.01/10)};         // migration_weight
+                        0.2*1000, (0.6/10)*1000,      // rule1_tresh, rule1_weight
+                        0.15*1000, (0.02/10)*1000,    // rule2_tresh, rule2_weight
+                        (0.01/10*1000)};         // migration_weight
 
 
 // Prototypes
@@ -236,38 +236,44 @@ double rnd_rey(void) {
 }
 
 // Randomly position specified robot
-void init_pos(int rob_id) {
+double init_pos(int rob_id) {
   static double rnd_posz=0;
+  double posz_rob_pso=0;
   if(rob_id==0){
     rnd_posz = (1.8-ROB_RAD)*rnd() - (1.8-ROB_RAD)/2.0;
   }
   if(!RND_POS){
     //printf("Setting random position for %d\n",rob_id);
     new_rot[rob_id][0] = 0.0;
-    new_rot[rob_id][1] = 1.0;
+    new_rot[rob_id][1] = -1.0;
     new_rot[rob_id][2] = 0.0;
-    new_rot[rob_id][3] = -1.5708;
+    new_rot[rob_id][3] = 1.5708;
     new_loc[rob_id][1] = 0;
     switch(rob_id){
       case 0:
         new_loc[rob_id][0] = -2.9;
         new_loc[rob_id][2] = 0;
+        posz_rob_pso=new_loc[rob_id][2];
         break;
       case 1:
         new_loc[rob_id][0] = -2.9;
         new_loc[rob_id][2] = 0.1;
+        posz_rob_pso=new_loc[rob_id][2];
         break;
       case 2:
         new_loc[rob_id][0] = -2.9;
         new_loc[rob_id][2] = -0.1;
+        posz_rob_pso=new_loc[rob_id][2];
         break;
       case 3:
         new_loc[rob_id][0] = -2.9;
         new_loc[rob_id][2] = 0.2;
+        posz_rob_pso=new_loc[rob_id][2];
         break;
       case 4:
         new_loc[rob_id][0] = -2.9;
         new_loc[rob_id][2] = -0.2;
+        posz_rob_pso=new_loc[rob_id][2];
         break;
       default:
         printf("Error in ini_pos in pos_obs_sup, rob_id%d not in range", rob_id);
@@ -276,30 +282,34 @@ void init_pos(int rob_id) {
    }
    else{
      new_rot[rob_id][0] = 0.0;
-     new_rot[rob_id][1] = 1.0;
+     new_rot[rob_id][1] = -1.0;
      new_rot[rob_id][2] = 0.0;
-     new_rot[rob_id][3] = -1.5708;
+     new_rot[rob_id][3] = 1.5708;
      new_loc[rob_id][1] = 0;
      new_loc[rob_id][0] = rel_init_pos_robot[rob_id][0];
      new_loc[rob_id][1] = 0.001;
      new_loc[rob_id][2] = rnd_posz + rel_init_pos_robot[rob_id][1];
+     posz_rob_pso = rnd_posz + rel_init_pos_robot[rob_id][1];
    }
 
   wb_supervisor_field_set_sf_vec3f(wb_supervisor_node_get_field(epucks[rob_id],"translation"), new_loc[rob_id]);
   wb_supervisor_field_set_sf_rotation(wb_supervisor_node_get_field(epucks[rob_id],"rotation"), new_rot[rob_id]);
+  return posz_rob_pso;
 }
 
 void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
   double buffer[255];
   double *rbuffer;
+  double posz_rob_pso;
   int i,j,k;
   /* Send data to robots */
   for (i=0;i<FLOCK_SIZE;i++) {
-    init_pos(i);
+    posz_rob_pso=init_pos(i);
     for (j=0;j<DATASIZE;j++) {
       buffer[j] = weights[0][j];
     }
-    wb_emitter_send(emitter[i],(void *)buffer,(DATASIZE)*sizeof(double));
+    buffer[DATASIZE]=posz_rob_pso;
+    wb_emitter_send(emitter[i],(void *)buffer,(DATASIZE+1)*sizeof(double));
   }
   wb_supervisor_simulation_reset_physics();
 
@@ -427,8 +437,8 @@ void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
 
   fit_obstacle/=FLOCK_SIZE;
 
-  fit[0] = (double) (fit_obstacle*WEIGHT_FIT_OBSTACLE + fit_flocking*WEIGHT_FIT_FLOCKING + dfl_tot);
-  printf("\nfit (%0.2lf) = fit_obstacle*WEIGHT_FIT_OBSTACLE (%0.2lf) + fit_flocking*WEIGHT_FIT_FLOCKING (%0.2lf)\n",fit[0], fit_obstacle*WEIGHT_FIT_OBSTACLE, fit_flocking*WEIGHT_FIT_FLOCKING);
+  fit[0] = (double) (fit_obstacle*WEIGHT_FIT_OBSTACLE*fit_flocking*WEIGHT_FIT_FLOCKING);
+  printf("\nfit (%0.2lf) = fit_obstacle*WEIGHT_FIT_OBSTACLE (%0.2lf) * fit_flocking*WEIGHT_FIT_FLOCKING (%0.2lf)\n",fit[0], fit_obstacle*WEIGHT_FIT_OBSTACLE, fit_flocking*WEIGHT_FIT_FLOCKING);
   printf("\n -------------------------------------------------------------------\n");
 }
 
@@ -532,7 +542,7 @@ void pso(double best_weight[DATASIZE]){
           particles[i][j]=prior_knowledge[j];
           lbest[i][j] = particles[i][j];           // Best configurations are initially current configurations
           nbbest[i][j] = particles[i][j];
-          if(j>=NB_SENSORS){
+          if(j>=NB_SENSORS && VMAX_TUNE){
               v[i][j] = 2.0*VMAX_REYNOLD*rnd_rey()-VMAX_REYNOLD;         // Random initial velocity
           }
           else{
@@ -555,7 +565,12 @@ void pso(double best_weight[DATASIZE]){
           particles[i][j] = (max-min)*rnd()+min;
           lbest[i][j] = particles[i][j];           // Best configurations are initially current configurations
           nbbest[i][j] = particles[i][j];
-          v[i][j] = 2.0*VMAX*rnd()-VMAX;         // Random initial velocity
+          if(j>=NB_SENSORS && VMAX_TUNE){
+              v[i][j] = 2.0*VMAX_REYNOLD*rnd_rey()-VMAX_REYNOLD;         // Random initial velocity
+          }
+          else{
+              v[i][j] = 2.0*VMAX*rnd()-VMAX;         // Random initial velocity
+          }
       }
     }
   }
@@ -615,7 +630,7 @@ void pso(double best_weight[DATASIZE]){
 
     double temp[DATASIZE];
     bestperf = bestResult(lbest,lbestperf,temp);
-    printf("Best performance of the iteration : %lf\n",bestperf);
+    printf("\n...................................................................................................................\nBest performance of the iteration : %lf\n ...................................................................................................................\n",bestperf);
    }
    findPerformance(lbest,lbestperf,NULL,SELECT);
    bestperf = bestResult(lbest,lbestperf,best_weight);
