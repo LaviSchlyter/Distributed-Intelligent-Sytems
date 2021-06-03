@@ -3,6 +3,7 @@
 /* Version:      1.0                                                               */
 /* Date:         06-Jun-21                                                         */
 /* Description:  Computing position in the robot frame using odometry and kalman   */
+/*               Pose update using GPS (on robot frame) starting at second =1      */
 /*                                                                                 */
 /**************************************************************************************************************************/
 
@@ -53,7 +54,7 @@ static pose_t _pose, _odo_acc, _odo_enc, _kal_wheel, _kal_acc;
 static pose_t _pose_origin = {-2.9, 0.0, 0};
 static FILE *fp;
 
-
+/*FUNCTIONS*/
 static bool controller_init_log(const char *filename);
 
 static bool controller_init();
@@ -62,18 +63,36 @@ static void controller_print_log(double time);
 
 static bool controller_error(bool test, const char *message, int line, const char *fileName);
 
-static measurement_t _meas; // See class in util.h
+void init_devices(int ts);
+
+static void controller_get_pose_gps();
+
+static void controller_get_gps();
+
+static double controller_get_heading_gps();
+
+static void controller_get_acc();
+
+static void controller_get_encoder();
+
+static void controller_compute_mean_acc();
+
+// Measurement structure with several variables (See class in util.h)
+static measurement_t _meas; 
 double last_gps_time_s = 0.0f;
 int time_step; // Introduce the time step
 
-WbDeviceTag dev_gps;
-WbDeviceTag dev_acc;
-WbDeviceTag dev_left_encoder;
+
+WbDeviceTag dev_gps; //GPS Handler
+WbDeviceTag dev_acc; //Acceleration Handler
+// Encoder handler
+WbDeviceTag dev_left_encoder; 
 WbDeviceTag dev_right_encoder;
+// Motor  handler
 WbDeviceTag dev_left_motor;
 WbDeviceTag dev_right_motor;
 
-void init_devices(int ts);
+
 
 void init_devices(int ts) {
     dev_gps = wb_robot_get_device("gps");
@@ -101,20 +120,6 @@ void init_devices(int ts) {
     
 }
 
-/*FUNCTIONS*/
-// Make static to limit its scope
-
-static void controller_get_pose_gps();
-
-static void controller_get_gps();
-
-static double controller_get_heading_gps();
-
-static void controller_get_acc();
-
-static void controller_get_encoder();
-
-static void controller_compute_mean_acc();
 
 
 int main() {
@@ -137,6 +142,7 @@ int main() {
     while (wb_robot_step(time_step) != -1) {
 
         if (wb_robot_get_time() < TIME_INIT_ACC) {
+        	// CALIBRATION
             controller_compute_mean_acc();
         } else {
         
@@ -151,8 +157,9 @@ int main() {
                 // Get the acceleration from webots
                 controller_get_acc();
         
-                // Get the encoder values (wheel motor values)
+                // Get the encoder values 
                 controller_get_encoder();
+                
                 double time_now_s = wb_robot_get_time();
                 time_step = wb_robot_get_basic_time_step();
                 
@@ -183,7 +190,7 @@ int main() {
             //trajectory_1(dev_left_motor, dev_right_motor);
             trajectory_2(dev_left_motor, dev_right_motor);
             
-            // Trajectory 3 for accelerometer calibration
+            // Trajectory 3 for accelerometer CALIBRATION
             //trajectory_3(dev_left_motor, dev_right_motor);
 
 
@@ -213,6 +220,7 @@ void controller_get_pose_gps() {
 
 
     if (time_now_s - last_gps_time_s > 1.0f) {
+    
          // Update gps measurements every second 
          controller_get_gps();
 
@@ -220,9 +228,11 @@ void controller_get_pose_gps() {
 
         _pose.x = _meas.gps[0] - _pose_origin.x;
 
+	// Inverted world
         _pose.y = -(_meas.gps[2] - _pose_origin.y);
         
         _pose.heading = -controller_get_heading_gps() + _pose_origin.heading;
+        
         if (VERBOSE_ROBOT_POSE) {
           printf("ROBOT pose : %g %g %g\n", _pose.x, _pose.y, RAD2DEG(_pose.heading));
           }
