@@ -302,16 +302,11 @@ int main(){
             // Get the encoder values (wheel motor values)
             controller_get_encoder();
     
-    
-            /// Compute position from wheel encoders
-            odo_compute_encoders(&_odo_enc, _meas.left_enc - _meas.prev_left_enc,
-                                 _meas.right_enc - _meas.prev_right_enc);
-    
-            int time_step_ = wb_robot_get_basic_time_step();
+            time_step = wb_robot_get_basic_time_step();
     
     
             double time_now_s = wb_robot_get_time();
-            compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, _meas.left_enc - _meas.prev_left_enc,
+            compute_kalman_wheels(&_kal_wheel, time_step, time_now_s, _meas.left_enc - _meas.prev_left_enc,
                               _meas.right_enc - _meas.prev_right_enc, _pose);
             
             bmsl = 0; bmsr = 0;
