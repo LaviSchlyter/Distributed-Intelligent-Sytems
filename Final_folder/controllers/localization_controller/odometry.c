@@ -1,3 +1,10 @@
+/**************************************************************************************************************************/
+/* File:         odometry.c                                         */
+/* Version:      1.0                                                               */
+/* Date:         06-Jun-21                                                         */
+/* Description:  Computation for locating with accelerometer and wheel encoders   */
+/*                                                                                 */
+/**************************************************************************************************************************/
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -6,7 +13,7 @@
 
 // Code with minor changes taken from Lab03 DIS-EPFL
 //-----------------------------------------------------------------------------------//
-/*CONSTANTES*/
+/*CONSTANTS*/
 #define WHEEL_AXIS 		0.057 		// Distance between the two wheels in meter
 #define WHEEL_RADIUS 	        0.0205		// Radius of the wheel in meter
 
@@ -83,16 +90,21 @@ void odo_compute_encoders(pose_t* odo, double Aleft_enc, double Aright_enc)
 
 	double speed_wy = speed * sin(a);
 	
-	/// Remove abusrd starting values
+
+	/** Remove abusrd starting values
+	
+	We noted that the first value of the encoder starts with NAN and causes absurd results, the following check verifies this absurd jump
+	And the small mistake in position which occurs because of skiping one iteration is negligable because of the small time step and is caught up with the GPS udpate (in Kalman when in use)
+	**/
 	if (Aleft_enc <0.30 & Aright_enc < 0.3) {
 	
 
-	// Integration : Euler method
-	_odo_pose_enc.x += speed_wx * _T;
+		// Integration : Euler method
+		_odo_pose_enc.x += speed_wx * _T;
 
-	_odo_pose_enc.y += speed_wy * _T;
+		_odo_pose_enc.y += speed_wy * _T;
 
-	_odo_pose_enc.heading += omega * _T;
+		_odo_pose_enc.heading += omega * _T;
 	
 	}
 	
