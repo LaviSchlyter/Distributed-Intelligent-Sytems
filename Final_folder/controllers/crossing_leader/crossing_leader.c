@@ -66,7 +66,7 @@ double migrLeft[2] = {1.85, 0};
 double migrRight[2] = {1.85, 0};
 static pose_t _pose, _odo_enc, _kal_wheel;
 
-// Initial robot position
+// Initial robot position in the GPS frame
 static pose_t _pose_origin_R = {-0.06, 0.0, M_PI};
 static pose_t _pose_origin_L = {-1.91, 0.0, 0};
 static double speed[2];                 // Speed calculated for migration
