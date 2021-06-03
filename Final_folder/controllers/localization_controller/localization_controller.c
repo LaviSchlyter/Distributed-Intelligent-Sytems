@@ -1,3 +1,12 @@
+/**************************************************************************************************************************/
+/* File:         localization_controller.c                                         */
+/* Version:      1.0                                                               */
+/* Date:         06-Jun-21                                                         */
+/* Description:  Computing position in the robot frame using odometry and kalman   */
+/*                                                                                 */
+/**************************************************************************************************************************/
+
+
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -18,13 +27,18 @@
 #include <webots/accelerometer.h>
 #include <webots/position_sensor.h>
 
-/*CONSTANTES*/
+/*CONSTANTS*/
 #define MAX_SPEED 1000          // Maximum speed
 #define INC_SPEED 5             // Increment not expressed in webots
 #define MAX_SPEED_WEB 6.28      // Maximum speed webots
 
-// If you would like to calibrate please define TIME_INIT_ACC 120 (for 120 seconds) else 0
-// Set VERBOSE_CALIBRATION to true and pick the third trajectory in main
+/* TO COMPUTE ACCELERATION BIAS
+If you would like to calibrate please:
+-  define TIME_INIT_ACC 120 (for 120 seconds) else 0
+- Set VERBOSE_CALIBRATION to true 
+- pick the trajectory (3) in main
+*/
+// 
 #define TIME_INIT_ACC 0           // Time in seconds
 #define true 1
 #define false 0
