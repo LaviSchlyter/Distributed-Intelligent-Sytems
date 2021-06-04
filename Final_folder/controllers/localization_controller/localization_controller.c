@@ -316,7 +316,6 @@ void controller_compute_mean_acc() {
     if (count > 20)
     {
         for (int i = 0; i < 3; i++) {
-            _meas.acc_mean[i] = (_meas.acc_mean[i] * (count - 1) + _meas.acc[i]) / (double) count;
             _meas.acc_mean_calibration[i] += _meas.acc_mean[i];
         }
     }
@@ -324,10 +323,10 @@ void controller_compute_mean_acc() {
     if (count == (int) ((TIME_INIT_ACC / (double) time_step) * 1000 - 1)) {
         printf("Accelerometer initialization Done ! \n");
         for (int i = 0; i < 3; i++) {
-            _meas.acc_mean_calibration[i] = _meas.acc_mean_calibration[i] / (count);
+            _meas.acc_mean_calibration[i] = _meas.acc_mean_calibration[i] / (count-20);
         }
 
-        printf("mean_Y = %g, meanx = %g, meanz = %g", _meas.acc_mean_calibration[0], _meas.acc_mean_calibration[1],
+        printf("mean_Y = %g, meanx = %g, meanz = %g\n", _meas.acc_mean_calibration[0], _meas.acc_mean_calibration[1],
                _meas.acc_mean_calibration[2]);
 
     }
