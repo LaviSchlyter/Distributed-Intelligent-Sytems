@@ -410,10 +410,11 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
 void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_now, const double heading,
                         const measurement_t meas_, const pose_t pose_) {
 
-    double acc_wx = meas_.acc[1] - meas_.acc_mean[1];
 
-    double acc_wy = meas_.acc[0] - meas_.acc_mean[0];
-    double acceleration[2] = {acc_wx, acc_wy};
+    double acc_r = ( meas_.acc[1] - meas_.acc_mean[1]);
+
+    
+    double acceleration[2] = {acc_r*cos(heading), acc_r*sin(heading)};
 
     double z[2] = {pose_.x, pose_.y};
 
