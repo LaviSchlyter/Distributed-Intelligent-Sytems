@@ -418,9 +418,7 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
     double acceleration[2] = {acc_r*cos(heading), acc_r*sin(heading)};
 
     double z[2] = {pose_.x, pose_.y};
-    double acceleration[2] = {acc_wx, acc_wy};
 
-    double z[2] = {pose_.x, pose_.y};
 
 
     if (VERBOSE_ACC_KAL) {
