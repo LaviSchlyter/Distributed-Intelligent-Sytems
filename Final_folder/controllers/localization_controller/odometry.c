@@ -96,7 +96,7 @@ void odo_compute_encoders(pose_t* odo, double Aleft_enc, double Aright_enc)
 	We noted that the first value of the encoder starts with NAN and causes absurd results, the following check verifies this absurd jump
 	And the small mistake in position which occurs because of skiping one iteration is negligable because of the small time step and is caught up with the GPS udpate (in Kalman when in use)
 	**/
-	if (Aleft_enc <0.30 & Aright_enc < 0.3) {
+	if ( (Aleft_enc <0.3 ) & (Aright_enc < 0.3)) {
 	
 
 		// Integration : Euler method
