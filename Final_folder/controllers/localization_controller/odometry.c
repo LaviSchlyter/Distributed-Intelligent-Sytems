@@ -38,17 +38,17 @@ void odo_compute_acc(pose_t* odo, const double acc[3], const double acc_mean[3],
 {
         /// Compute acceleration + remove the bias 
         
-	double acc_wx = ( acc[1] - acc_mean[1])*cos(heading);
-	double acc_wy = -( acc[0] - acc_mean[0])*sin(heading);
+	double acc_r = ( acc[1] - acc_mean[1]);
 	
+        speed += acc_r*_T; 
 
         // Speed
-	_odo_speed_acc.x += acc_wx *_T;
-	_odo_speed_acc.y += acc_wy *_T;
+	_odo_speed_acc.x = speed*cos(heading);
+	_odo_speed_acc.y = speed*sin(heading);
 
         // Position
-	_odo_pose_acc.x += _odo_speed_acc.x * _T*cos(heading);
-	_odo_pose_acc.y += _odo_speed_acc.y * _T*sin(heading);
+	_odo_pose_acc.x += _odo_speed_acc.x * _T;
+	_odo_pose_acc.y += _odo_speed_acc.y * _T;
 
         // Upgrade heading with wheel encoder value 
         _odo_pose_acc.heading = heading;
