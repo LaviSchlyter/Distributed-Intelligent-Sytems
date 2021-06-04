@@ -18,12 +18,12 @@
 #define false 0
 
 #define VERBOSE_ACC_KAL false                       // Print the accelerometer Kalman
-#define VERBOSE_WHEEL_KAL false                       // Print the wheel encoder Kalman
+#define VERBOSE_WHEEL_KAL true                       // Print the wheel encoder Kalman
 
 int time_step;
 /// Variables to store the pose of wheel and the position+velocities for accelerometer
-static double X_wheel[3], X_acc[4];
-static double X_new_wheel[3], X_new_acc[4];
+static double X_wheel[3][1], X_acc[4][1];
+static double X_new_wheel[3][1], X_new_acc[4][1];
 
 /// Variables to store the "Kalman gain"
 static double K_wheel[3][3], K_acc[4][2];
@@ -188,7 +188,7 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
 
     // Because the GPS is only updated every second, the heading is not very accurate (this was tested in previous versions) and we thus do not update the heading with GPS but keep the odometry value
     double heading =  pos_kal_wheel ->heading;
-    double z[3] = {pose_.x, pose_.y, heading};    
+    double z[3][1] = {{pose_.x}, {pose_.y}, {heading}};    
 
     // Convert from radians to meters
     Aleft_enc *= WHEEL_RADIUS;
@@ -200,7 +200,7 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
 	We noted that the first value of the encoder starts with NAN and causes absurd results, the following check verifies this absurd jump
 	And the small mistake in position which occurs because of skiping one iteration is negligable because of the small time step and is caught up with the GPS udpate (in Kalman when in use)
 	**/
-    if (Aleft_enc <0.30 & Aright_enc < 0.3) {
+    if ( (Aleft_enc < 0.3) & (Aright_enc < 0.3) ) {
 
 
     const double delta_s = (Aright_enc + Aleft_enc) / 2;
@@ -209,7 +209,7 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
     if (VERBOSE_WHEEL_KAL) {
         printf("===============NEW STEP WHEEL KALMAN==================\n");
         printf("------------------ \n");
-        printf("x_wheel = %g,   y_wheel = %g   heading_wheel = %g \n", X_wheel[0], X_wheel[1], RAD2DEG(X_wheel[2]));
+        printf("x_wheel = %g,   y_wheel = %g   heading_wheel = %g \n", X_wheel[0][0], X_wheel[1][0], RAD2DEG(X_wheel[2][0]));
     }
 
     // Actuator noise
@@ -255,9 +255,9 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
     
     **/
 
-    double pred[3] = {delta_s * cos(heading + delta_theta / 2),
-                      delta_s * sin(heading + delta_theta / 2),
-                      delta_theta};
+    double pred[3][1] = {{delta_s * cos(heading + delta_theta / 2)},
+                      {delta_s * sin(heading + delta_theta / 2)},
+                      {delta_theta}};
 
     // X(t+1) = X(t) + pred
     add(3, 1, X_wheel, pred, X_new_wheel, 1);
@@ -345,12 +345,12 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
 
         /// Start of updating computation // new X when "true" pose (gps) available
         
-        double tmp8[3];
+        double tmp8[3][1];
         /// tmp8 = C*X_new
         multiply(3, 3, C, 3, 1, X_new_wheel, tmp8);
         /// tmp8 = z - C*X_new = z - tmp3
         substract(3, 1, z, tmp8, tmp8);
-        double tmp9[3];
+        double tmp9[3][1];
         /// tmp9 = K*tmp8 = K*(z - C*X_new)
         multiply(3, 3, K_wheel, 3, 1, tmp8, tmp9);
         /// X_new = X_new + K*(z - C*X_new)
@@ -382,13 +382,13 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
     }
     
       	// Keep orientation within 0, 2pi
-  	while (X_new_wheel[2] > 2*M_PI) {
-          	X_new_wheel[2] -= 2.0*M_PI;
+  	while (X_new_wheel[2][0] > 2*M_PI) {
+          	X_new_wheel[2][0] -= 2.0*M_PI;
   	
   	}
   	
-  	while (X_new_wheel[2] < 0) {
-          	X_new_wheel[2] += 2.0*M_PI;
+  	while (X_new_wheel[2][0] < 0) {
+          	X_new_wheel[2][0] += 2.0*M_PI;
   	
   	}
     
@@ -396,13 +396,13 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
 
 
     /// Storing computed position into pose vector
-    _kal_wheel.x = X_new_wheel[0];
-    _kal_wheel.y = X_new_wheel[1];
-    _kal_wheel.heading = X_new_wheel[2];
+    _kal_wheel.x = X_new_wheel[0][0];
+    _kal_wheel.y = X_new_wheel[1][0];
+    _kal_wheel.heading = X_new_wheel[2][0];
 
-    X_wheel[0] = X_new_wheel[0];
-    X_wheel[1] = X_new_wheel[1];
-    X_wheel[2] = X_new_wheel[2];
+    X_wheel[0][0] = X_new_wheel[0][0];
+    X_wheel[1][0] = X_new_wheel[1][0];
+    X_wheel[2][0] = X_new_wheel[2][0];
 
     memcpy(pos_kal_wheel, &_kal_wheel, sizeof(pose_t));
     }
@@ -415,17 +415,16 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
                         const measurement_t meas_, const pose_t pose_) {
     double acc_r = ( meas_.acc[1] - meas_.acc_mean[1]);
     
-    double acceleration[2] = {acc_r*cos(heading), acc_r*sin(heading)};
+    double acceleration[2][1] = {{acc_r*cos(heading)}, {acc_r*sin(heading)}};
 
-    double z[2] = {pose_.x, pose_.y};
-
+    double z[2][1] = {{pose_.x}, {pose_.y}};
 
 
     if (VERBOSE_ACC_KAL) {
         printf("===============NEW STEP ACCELEROMETER KALMAN==================\n");
         printf("GPSx = %g,   GPSy = %g\n", meas_.gps[0], meas_.gps[2]);
         printf("------------------ \n");
-        printf("x_acc = %g,   y_acc = %g  \n", X_acc[0], X_acc[1]);
+        printf("x_acc = %g,   y_acc = %g  \n", X_acc[0][0], X_acc[1][0]);
         printf("-----------\n");
         printf("Heading acc = %g \n", heading);
     }
@@ -490,11 +489,11 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
     
     **/
 
-    double tmp1[4];
+    double tmp1[4][1];
     // tmp1 = A*X
     multiply(4, 4, A, 4, 1, X_acc, tmp1);
 
-    double tmp2[4];
+    double tmp2[4][1];
     // tmp2 = B*acc
     multiply(4, 2, B, 2, 1, acceleration, tmp2);
 
@@ -551,11 +550,11 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
 
 	/// Start Updating measure
 	
-        double tmp3[2];
+        double tmp3[2][1];
         // tmp3 = C*X_new (2x1)
         multiply(2, 4, C, 4, 1, X_new_acc, tmp3);
 
-        double tmp11[4];
+        double tmp11[4][1];
         // tmp3 = z - C*X_new = z - tmp3
         substract(2, 1, z, tmp3, tmp3);
         // tmp3 = K*tmp3 = K*(z - C*X_new)
@@ -588,15 +587,15 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
     }
 
     /// Storing computed position into "kalman pose" vector
-    _kal_acc.x = X_new_acc[0];
-    _kal_acc.y = X_new_acc[1];
+    _kal_acc.x = X_new_acc[0][0];
+    _kal_acc.y = X_new_acc[1][0];
     _kal_acc.heading = heading;
 
 
-    X_acc[0] = X_new_acc[0];
-    X_acc[1] = X_new_acc[1];
-    X_acc[2] = X_new_acc[2];
-    X_acc[3] = X_new_acc[3];
+    X_acc[0][0] = X_new_acc[0][0];
+    X_acc[1][0] = X_new_acc[1][0];
+    X_acc[2][0] = X_new_acc[2][0];
+    X_acc[3][0] = X_new_acc[3][0];
 
     memcpy(pos_kal_acc, &_kal_acc, sizeof(pose_t));
 
@@ -617,4 +616,3 @@ void kal_reset()
 
 	memset(&_kal_acc, 0 , sizeof(pose_t));
 }
-
