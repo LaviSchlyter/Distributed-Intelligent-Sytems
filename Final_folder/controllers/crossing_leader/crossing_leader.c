@@ -3,7 +3,7 @@
 /* Version:      1.0                                                         */
 /* Date:         06-Jun-21                                                   */
 /* Description:  Formation with relative positions in a world with           */
-/*               two teams of robots crossing : leader controller            */
+/*               two teams of robots crossing : leader controller             */
 /*                                                                           */
 /*****************************************************************************/
 #include <stdio.h>
