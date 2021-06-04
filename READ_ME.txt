@@ -1,6 +1,60 @@
+# DIS Semester Project 
+
+This project aims at implementing a navigation strategy for a multi-robot system formed by a group of simulated e-pucks. The robots must be able to position themselves using odometry and Kalman; they must be able to move together as a group towards a specific target avoiding static and dynamic obstacles while maitaining a given formation.
+
+The code is written in C and is runnable on Weebots. The metrics and plots and performed in Matlab.
+
+### AUTHORS = Clément Cosson, Paco Mermoud, Tiffany Pereira and Lavinia Schlyter
 
 
-------------------------------- LOCALIZATION CONTROLLERS -----------------------------
+The Final folder contains three directories:
+
+Final Folder
+├── Matlab
+├── controllers
+│   └── localization_controller
+│   │    
+│   └── crossing_leader
+│   │    
+│   └── obstacle leader
+│   ... etc 
+│  
+│
+├── worlds
+│   └── localization.wbt
+│   │    
+│   └── obstacles.wbt
+│   │    
+│   └── crossing.wbt
+│   ...etc    
+│       
+
+------------------------------- LOCALIZATION CONTROLLER -----------------------------
+
+In the *localization_controller.c*, we run a main file which computes the position of the robot of interest using odometry with the accelerometer as well and the wheel encoder but also the updated version which uses GPS coordinates at every second (NOTE: Starts at second =1 and not zero) for both odometries. 
+
+Note: The localization is w.r.t to the world frame (for the directions) but w.r.t robot for the values. 
+The frame used (where z points outside of the screen perpendicular to the plane) for position is depicted below. The values are taken w.r.t the robot.
+y
+^
+|
+|
+------> x
+\
+ \
+  \
+   z  
+   
+Because we are updating using the GPS but we want it in the relative to robot frame, we shift the GPS using the initial position of the robot stored in _pose_origin = {x, y, heading}; 
+You may note that throughout the worlds these are hard coded and must be changed if needed.
+
+## Calibrate accelerometer
+In order to calibrate the accelerometer, that is to compute its bias, please follow the following instructions:
+- Set the TIME_INIT_ACC = 120 at line 43
+- Set the VERBOSE_CALIBRATION to "true" at line 46
+- Change the trajectory at line 193 to 3 (It will keep the robot into position) and comment the other ones.
+- A message will be printed with the mean accelerations in all directions which are then hardcoded from line 136-140
+
 
 ------------------------------- FLOCKING CONTROLLER ----------------------------------
 
