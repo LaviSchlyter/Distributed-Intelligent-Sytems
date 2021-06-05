@@ -55,7 +55,9 @@ In order to calibrate the accelerometer, that is to compute its bias, please fol
 - Change the trajectory at line 193 to 3 (It will keep the robot into position) and comment the other ones.
 - A message will be printed with the mean accelerations in all directions which are then hardcoded from line 136-140
 
-
+## Adding files to Makefile
+In order to use the odometry and the kalman in controllers, they must be added with the relative path to the Makefile in the C_SOURCES. 
+eg. C_SOURCES= ../localization_controller/odometry.c ../localization_controller/kalman.c obstacle_leader.c
 ------------------------------- FLOCKING CONTROLLER ----------------------------------
 
 ------------------------------- FORMATION CONTROLLERS --------------------------------
