@@ -594,7 +594,7 @@ DEF supervisor Robot {
     }
   ]
   name "supervisor"
-  controller "pso_sup_formation"
+  controller "pso_simplified_sup_formation"
   supervisor TRUE
 }
 DEF epuck0 Robot {
@@ -630,7 +630,7 @@ DEF epuck0 Robot {
         }
       ]
       endPoint DEF EPUCK_LEFT_WHEEL Solid {
-        translation -0.025999999999999617 0.02 0
+        translation -0.02599999999999959 0.02 0
         rotation 1 0 0 3.996129904161135
         children [
           DEF EPUCK_WHEEL Transform {
@@ -786,7 +786,7 @@ DEF epuck0 Robot {
         }
       ]
       endPoint DEF EPUCK_RIGHT_WHEEL Solid {
-        translation 0.025999999999999853 0.02 0
+        translation 0.025999999999999895 0.02 0
         rotation 1 0 0 3.831165102177967
         children [
           Transform {
@@ -1986,7 +1986,7 @@ DEF epuck0 Robot {
       0 0 0
     ]
   }
-  controller "pso_leader_formation"
+  controller "pso_simplified_leader_formation"
   cpuConsumption 1.11
 }
 DEF epuck1 Robot {
@@ -3377,7 +3377,7 @@ DEF epuck1 Robot {
       0 0 0
     ]
   }
-  controller "pso_follower_formation"
+  controller "pso_simplified_follower_formation"
   cpuConsumption 1.11
 }
 DEF epuck2 Robot {
@@ -3413,7 +3413,7 @@ DEF epuck2 Robot {
         }
       ]
       endPoint DEF EPUCK_LEFT_WHEEL Solid {
-        translation -0.02599999999999982 0.02 0
+        translation -0.02599999999999981 0.02 0
         rotation 1 0 0 5.312734371735818
         children [
           DEF EPUCK_WHEEL Transform {
@@ -3569,7 +3569,7 @@ DEF epuck2 Robot {
         }
       ]
       endPoint DEF EPUCK_RIGHT_WHEEL Solid {
-        translation 0.02599999999999969 0.02 0
+        translation 0.02599999999999967 0.02 0
         rotation -1 0 0 2.0238180019809597
         children [
           Transform {
@@ -4769,7 +4769,7 @@ DEF epuck2 Robot {
       0 0 0
     ]
   }
-  controller "pso_follower_formation"
+  controller "pso_simplified_follower_formation"
   cpuConsumption 1.11
 }
 DEF epuck3 Robot {
@@ -6161,7 +6161,7 @@ DEF epuck3 Robot {
       0 0 0
     ]
   }
-  controller "pso_follower_formation"
+  controller "pso_simplified_follower_formation"
   cpuConsumption 1.11
 }
 DEF epuck4 Robot {
@@ -6197,7 +6197,7 @@ DEF epuck4 Robot {
         }
       ]
       endPoint DEF EPUCK_LEFT_WHEEL Solid {
-        translation -0.025999999999999548 0.02 0
+        translation -0.025999999999999513 0.02 0
         rotation 0.9999999999999999 0 0 5.8495033293794405
         children [
           DEF EPUCK_WHEEL Transform {
@@ -6353,7 +6353,7 @@ DEF epuck4 Robot {
         }
       ]
       endPoint DEF EPUCK_RIGHT_WHEEL Solid {
-        translation 0.025999999999999676 0.02 0
+        translation 0.025999999999999655 0.02 0
         rotation 1 0 0 0.06395581583228444
         children [
           Transform {
@@ -7553,6 +7553,6 @@ DEF epuck4 Robot {
       0 0 0
     ]
   }
-  controller "pso_follower_formation"
+  controller "pso_simplified_follower_formation"
   cpuConsumption 1.11
 }
