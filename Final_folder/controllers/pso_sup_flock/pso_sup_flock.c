@@ -58,7 +58,7 @@
 #define MAX_BRAITEN 200.0               // Upper bound on initialization value for braiten
 #define MIN_REYNOLDS 1                  // Lower bound on initialization value for reynolds
 #define MAX_REYNOLDS 1000               // Upper bound on initialization value for reynolds
-#define ITS_PSO 40                      // Number of iterations to run
+#define ITS_PSO 100                     // Number of iterations to run
 #define DATASIZE NB_SENSORS+5           // Number of elements in particle (2 Neurons with 8 proximity sensors and 5 params for flocking)
 #define FINALRUNS 1
 #define N_RUNS 1

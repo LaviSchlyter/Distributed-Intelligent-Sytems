@@ -84,11 +84,11 @@ static double time_step;                  // Time step
 static measurement_t _meas; // See class in util
 static double last_gps_time_s = 0.0f;
 // Initial robot positions (x, theta, y) --> in pose (x,y,heading)
-pose_t _pose_origin_robot_0 = {-2.9, 0.0, 0};
-pose_t _pose_origin_robot_1 = {-2.9, 0.1, 0};
-pose_t _pose_origin_robot_2 = {-2.9, -0.1, 0};
-pose_t _pose_origin_robot_3 = {-2.9, 0.2, 0};
-pose_t _pose_origin_robot_4 = {-2.9, -0.2, 0};
+pose_t _pose_origin_robot_0 = {-2.8, 0.0, 0};
+pose_t _pose_origin_robot_1 = {-2.8, 0.1, 0};
+pose_t _pose_origin_robot_2 = {-2.8, -0.1, 0};
+pose_t _pose_origin_robot_3 = {-2.8, 0.2, 0};
+pose_t _pose_origin_robot_4 = {-2.8, -0.2, 0};
 
 static pose_t _pose, _kal_wheel;
 static void controller_get_pose_gps();
@@ -424,11 +424,11 @@ double simulation_webot(double weights[DATASIZE+1]){
          // Avoid to the left or right ?
          if(ds_value[6] < ds_value[1]){
            side=0; // left
-           if(robot_verbose){printf("Robot%d to left\n", robot_id_u);}
+           if(robot_verbose && VERBOSE){printf("Robot%d to left\n", robot_id_u);}
          }
          else{
            side=1; // right
-           if(robot_verbose){printf("Robot%d to right\n", robot_id_u);}
+           if(robot_verbose && VERBOSE){printf("Robot%d to right\n", robot_id_u);}
          }
 
         if(robot_verbose && VERBOSE){printf("ENTER AVOIDANCE (Side) --------------\n");}
