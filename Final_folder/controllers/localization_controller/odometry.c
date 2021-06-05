@@ -25,6 +25,8 @@
 static double _T;
 
 static pose_t _odo_pose_acc, _odo_speed_acc, _odo_pose_enc;
+
+static double speed = 0;
 //-----------------------------------------------------------------------------------//
 
 /**
