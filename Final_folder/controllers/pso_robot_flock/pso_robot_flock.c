@@ -20,13 +20,14 @@
 #include <webots/distance_sensor.h>
 #include <webots/emitter.h>
 #include <webots/receiver.h>
+#include <webots/position_sensor.h>
 
 // L.
 #include "../localization_controller/utils.h"
 #include "../localization_controller/odometry.h"
 #include "../localization_controller/kalman.h"
 
-#define VERBOSE           0
+#define VERBOSE            0
 #define NB_SENSORS	      8	     // Number of distance sensors
 #define MIN_SENS          350    // Minimum sensibility value
 #define MAX_SENS          4096   // Maximum sensibility value
@@ -37,14 +38,15 @@
 #define TIME_STEP	       64	 // [ms] Length of time step
 
 #define AXLE_LENGTH 		0.052	// Distance between wheels of robot (meters)
-#define SPEED_UNIT_RADS	    0.00628	// Conversion factor from speed unit to radian per second
+#define SPEED_UNIT_RADS	0.00628	// Conversion factor from speed unit to radian per second
 #define WHEEL_RADIUS		0.0205	// Wheel radius (meters)
-#define DELTA_T		        0.064	// Timestep (seconds)
+#define DELTA_T		0.064	// Timestep (seconds)
 
 // PSO
 #define SIM_STEPS 600                   // number of simulation steps/iterations
 #define DATASIZE NB_SENSORS+5         // Number of elements in particle (2 Neurons with 8 proximity sensors and 5 params for flocking)
 #define SCALING_REYNOLD 1000
+#define RULE1_THRESHOLD     0.2   // Threshold to activate aggregation rule. default 0.20
 
 WbDeviceTag left_motor; //handler for left wheel of the robot
 WbDeviceTag right_motor; //handler for the right wheel of the robot
@@ -76,6 +78,7 @@ int avoidance=0; // boolean to avoid obstacle
 int side=0; // side of avoidance (left=0, right=1)
 float theta_robots[FLOCK_SIZE];
 
+
 // L.
 static double time_step;                  // Time step
 static measurement_t _meas; // See class in util
@@ -87,7 +90,7 @@ pose_t _pose_origin_robot_2 = {-2.9, -0.1, 0};
 pose_t _pose_origin_robot_3 = {-2.9, 0.2, 0};
 pose_t _pose_origin_robot_4 = {-2.9, -0.2, 0};
 
-static pose_t _pose, _odo_enc, _kal_wheel;
+static pose_t _pose, _kal_wheel;
 static void controller_get_pose_gps();
 
 static void controller_get_gps();
@@ -99,14 +102,14 @@ static double controller_get_heading_gps();
  * Reset the robot's devices and get its ID
  */
 static void reset() {
-	wb_robot_init();
-	dev_gps = wb_robot_get_device("gps");
-        wb_gps_enable(dev_gps, 1); // Enable GPS every 1000ms <=> 1s
-	time_step = wb_robot_get_basic_time_step();
-	receiver = wb_robot_get_device("receiver");
-	emitter = wb_robot_get_device("emitter");
+      wb_robot_init();
+      dev_gps = wb_robot_get_device("gps");
+      wb_gps_enable(dev_gps, 1); // Enable GPS every 1000ms <=> 1s
+      time_step = wb_robot_get_basic_time_step();
+      receiver = wb_robot_get_device("receiver");
+      emitter = wb_robot_get_device("emitter");
 
-	//get motors
+      //get motors
       left_motor = wb_robot_get_device("left wheel motor");
       right_motor = wb_robot_get_device("right wheel motor");
       wb_motor_set_position(left_motor, INFINITY);
@@ -169,7 +172,7 @@ void limit(int *number, int limit) {
  */
 void update_self_motion(int msl, int msr) {
 
-	float theta = my_position[2];
+	//float theta = my_position[2];
 	float dr = (float)msr * SPEED_UNIT_RADS * DELTA_T; //radians
 	float dl = (float)msl * SPEED_UNIT_RADS  * DELTA_T;
 
@@ -194,7 +197,7 @@ void update_self_motion(int msl, int msr) {
   	// Keep orientation within 0, 2pi
 	if (my_position[2] > 2*M_PI) my_position[2] -= 2.0*M_PI;
 	if (my_position[2] < 0) my_position[2] += 2.0*M_PI;
-           printf("Robot %d heading %lf\n", robot_id, RAD2DEG(my_position[2]));
+           //printf("Robot %d heading %lf\n", robot_id, RAD2DEG(my_position[2]));
 }
 
 /*
@@ -226,7 +229,7 @@ void compute_wheel_speeds(int *msl, int *msr) {
 /*
  *  Update speed according to Reynold's rules
  */
-void reynolds_rules(rule1_weight, rule1_threshold, rule2_weight, rule2_threshold, migration_weight) {
+void reynolds_rules(double rule1_threshold, double rule1_weight, double rule2_threshold, double rule2_weight, double migration_weight) {
 
 	int i, j, k;			// Loop counters
 	float rel_avg_loc[2] = {0,0};	// Flock average positions
@@ -249,19 +252,17 @@ void reynolds_rules(rule1_weight, rule1_threshold, rule2_weight, rule2_threshold
         rel_avg_loc[j] /= FLOCK_SIZE-1;
    }
 
-	/* Rule 1 - Aggregation/Cohesion: move towards the center of mass */
-
+    /* Rule 1 - Aggregation/Cohesion: move towards the center of mass */
     for (j=0;j<2;j++) {
-        if (sqrt(pow(rel_avg_loc[0],2)+pow(rel_avg_loc[1],2)) > rule1_threshold) {
+        if (sqrt(pow(rel_avg_loc[0],2)+pow(rel_avg_loc[1],2)) > (float) rule1_threshold) {
             cohesion[j] = rel_avg_loc[j];
         }
     }
-
 	/* Rule 2 - Dispersion/Separation: keep far enough from flockmates */
 	for (k=0;k<FLOCK_SIZE;k++) {
 		if (k != robot_id) {        // Loop on flockmates only
 			// If neighbor k is too close (Euclidean distance)
-			if (sqrt(pow(relative_pos[k][0],2)+pow(relative_pos[k][1],2)) < rule2_threshold) {
+			if (sqrt(pow(relative_pos[k][0],2) + pow(relative_pos[k][1],2)) < (float) rule2_threshold) {
 				for (j=0;j<2;j++) {
 					dispersion[j] -= 1/(relative_pos[k][j]);	// Relative distance to k
 				}
@@ -272,14 +273,14 @@ void reynolds_rules(rule1_weight, rule1_threshold, rule2_weight, rule2_threshold
 
     //aggregation of all behaviors with relative influence determined by weights
 	for (j=0;j<2;j++) {
-       speed[robot_id][j] = cohesion[j] * rule1_weight;
-       speed[robot_id][j] +=  dispersion[j] * rule2_weight;
+       speed[robot_id][j] = cohesion[j] * (float) rule1_weight;
+       speed[robot_id][j] +=  dispersion[j] * (float) rule2_weight;
 	}
 	speed[robot_id][1] *= -1; //y axis of webots is inverted
 
 	//move the robot according to some migration rule
-    speed[robot_id][0] += (migr[0]-my_position[0]) * migration_weight;
-    speed[robot_id][1] -= (migr[1]-my_position[1]) * migration_weight; //y axis of webots is inverted
+    speed[robot_id][0] += (migr[0]-my_position[0]) * (float) migration_weight;
+    speed[robot_id][1] -= (migr[1]-my_position[1]) * (float) migration_weight; //y axis of webots is inverted
 }
 
 
@@ -396,7 +397,7 @@ double simulation_webot(double weights[DATASIZE+1]){
     speed[robot_id][1] = (1/DELTA_T)*(my_position[1]-prev_my_position[1]);
 
     // Reynold's rules with all previous info (updates the speed[][] table)
-    reynolds_rules(weights[NB_SENSORS]/SCALING_REYNOLD, weights[NB_SENSORS+1]/SCALING_REYNOLD, weights[NB_SENSORS+2]/SCALING_REYNOLD, weights[NB_SENSORS+3]/SCALING_REYNOLD, weights[NB_SENSORS+4]/SCALING_REYNOLD);
+    reynolds_rules( weights[NB_SENSORS]/SCALING_REYNOLD, weights[NB_SENSORS+1]/SCALING_REYNOLD, weights[NB_SENSORS+2]/SCALING_REYNOLD, weights[NB_SENSORS+3]/SCALING_REYNOLD,  weights[NB_SENSORS+4]/SCALING_REYNOLD);
 
     // Compute wheels speed from reynold's speed
     if(VERBOSE && 1 && robot_verbose){printf("Avant Reynodl: \nmsl=%d, msr=%d\n", msl, msr);}

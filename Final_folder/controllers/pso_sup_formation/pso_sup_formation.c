@@ -64,7 +64,6 @@
 #define WEIGHT_V 1
 #define WEIGHT_FIT_OBSTACLE 1
 #define WEIGHT_FIT_FLOCKING 1
-#define NUMBER_LEADER 0               // number of the leader id
 
 
 /* Initial position of robots */
@@ -96,6 +95,12 @@ const double rel_init_pos_robot[FLOCK_SIZE][2]={{-2.8,0},
                                              {-2.8,0.2},
                                              {-2.8,-0.2},
                                              };
+const double bias[FLOCK_SIZE][2]={{0,0},
+                                 {-0.1,0.1},
+                                 {-0.1,-0.1},
+                                 {-0.2,0.2},
+                                 {-0.2,-0.2},
+                                 };                                            
 double new_loc[FLOCK_SIZE][3];
 double new_rot[FLOCK_SIZE][4];
 int num_leader = 0;  //robot id of the leader
@@ -299,38 +304,33 @@ void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
   for (i=0;i<FLOCK_SIZE;i++) {
     posz_rob_pso=init_pos(i);
     for (j=0;j<DATASIZE;j++) {
-      if(NUMBER_LEADER==i){
-        buffer[0] = posz_rob_pso;
-        break;
-      }
-      else{
         buffer[j] = weights[0][j];
-      }
     }
-    if(NUMBER_LEADER==i){
-        wb_emitter_send(emitter[i],(void *)buffer,(1)*sizeof(double));
-    }
-    else{
-        buffer[DATASIZE]=posz_rob_pso;
-        wb_emitter_send(emitter[i],(void *)buffer,(DATASIZE+1)*sizeof(double));
-    }
+      buffer[DATASIZE]=posz_rob_pso;
+      wb_emitter_send(emitter[i],(void *)buffer,(DATASIZE+1)*sizeof(double));
   }
   wb_supervisor_simulation_reset_physics();
 
   // Fitness flocking
-  double Mfo=0;    // formation control metric
-  double v=0;  // velocity of the team towards the goal direction
-  double dfo=0; //TODO
+  double Mfo=0;  // formation control metric
+  double v=0;   // velocity of the team towards the goal direction
+  double dfo=0; // Distance follower from Leader w. r. t. the bias
+  double dfo_temp=0;
   double unused=0;
   int counter = 0; // count how many time the fitness is computed
   double pre_ctr_x = 0;
   double pre_ctr_z = 0;
   double ctr_x = 0;
   double ctr_z = 0;
+  double pos_loc_x[FLOCK_SIZE]; 
+  double pos_loc_z[FLOCK_SIZE]; 
+  
 
   // Initialise the center of the flock -----
   for (i=0;i<FLOCK_SIZE;i++) {
       loc[i] = wb_supervisor_field_get_sf_vec3f(wb_supervisor_node_get_field(epucks[i],"translation"));
+      pos_loc_x[i]=0;
+      pos_loc_z[i]=0; 
   }
 
   //calculate position of the flock center
@@ -349,7 +349,6 @@ void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
 
     for (i=0; i<FLOCK_SIZE ; i++){
       loc[i]= wb_supervisor_field_get_sf_vec3f(wb_supervisor_node_get_field(epucks[i],"translation"));
-      rot[i] = wb_supervisor_field_get_sf_rotation(wb_supervisor_node_get_field(epucks[i],"rotation"));
     }
 
     //calculate position of the flock center
@@ -363,15 +362,35 @@ void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
      ctr_z /= (double) FLOCK_SIZE;
 
     //calculate v(t)
-    v = (double) sqrt(pow(pre_ctr_x-ctr_x,2)+pow(pre_ctr_z-ctr_z,2))/dmax*WEIGHT_V;
+    v += (double) sqrt(pow(pre_ctr_x-ctr_x,2)+pow(pre_ctr_z-ctr_z,2))/dmax*WEIGHT_V;
     pre_ctr_x = ctr_x; // save the center of the flock
     pre_ctr_z = ctr_z;
+    
+    // calculate df0(t)
+    dfo_temp=0;
+    for (i=0; i<FLOCK_SIZE ; i++){
+       if(i==0){  //Leader
+           pos_loc_x[i]=0;
+           pos_loc_z[i]=0; 
+       }
+       else{  //folowers
+           pos_loc_x[i]=loc[i][0]-loc[0][0];
+           pos_loc_z[i]=loc[i][2]-loc[0][2];
+       }
+    }
+    for (i=1; i<FLOCK_SIZE ; i++){
+        dfo_temp+=sqrt(pow(pos_loc_x[i]-bias[i][0], 2)+pow(pos_loc_z[i]-bias[i][1], 2));
+    }
+    dfo_temp=1/(1+dfo_temp/FLOCK_SIZE);
+    dfo+=dfo_temp;
 
-    //compute final flocking metric
-    Mfo+=dfo*v;
   }
-
-   Mfo/=counter; // normalization
+  // normalization
+  dfo/=counter;
+  v/=counter;
+  //compute final flocking metric
+  Mfo=dfo*v;
+   
    printf("End simulation superviser.\n");
 
    /* Get fitness values from robots */
@@ -382,7 +401,7 @@ void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
       //printf("rob%d :%lf  ", i, rbuffer[0]);
       unused += rbuffer[0];
       wb_receiver_next_packet(rec[i]);
-  }
+   }
 
 
   fit[0] = Mfo; //TODO

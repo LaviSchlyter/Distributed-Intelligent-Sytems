@@ -19,7 +19,7 @@
 #include <webots/robot.h>
 
 #define NOISY 1
-#define DOMAIN_WEIGHT 1
+#define DOMAIN_WEIGHT 0
 
 #if NOISY == 1
 #define ITS_COEFF 1.0     // Multiplier for number of iterations

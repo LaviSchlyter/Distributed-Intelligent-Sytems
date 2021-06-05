@@ -18,7 +18,7 @@
 #define false 0
 
 #define VERBOSE_ACC_KAL false                       // Print the accelerometer Kalman
-#define VERBOSE_WHEEL_KAL true                       // Print the wheel encoder Kalman
+#define VERBOSE_WHEEL_KAL false                       // Print the wheel encoder Kalman
 
 int time_step;
 /// Variables to store the pose of wheel and the position+velocities for accelerometer
