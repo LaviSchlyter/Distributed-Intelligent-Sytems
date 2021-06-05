@@ -47,18 +47,25 @@ y
    
 Because we are updating using the GPS but we want it in the relative to robot frame, we shift the GPS using the initial position of the robot stored in _pose_origin = {x, y, heading}; 
 You may note that throughout the worlds these are hard coded and must be changed if needed.
+Note: Because updating the heading with GPS is not optimal as discussed in the report; the _pose.heading is not used in the updating step (refer to kalman.c)
 
 ## Calibrate accelerometer
 In order to calibrate the accelerometer, that is to compute its bias, please follow the following instructions:
-- Set the TIME_INIT_ACC = 120 at line 43
-- Set the VERBOSE_CALIBRATION to "true" at line 46
-- Change the trajectory at line 193 to 3 (It will keep the robot into position) and comment the other ones.
-- A message will be printed with the mean accelerations in all directions which are then hardcoded from line 136-140
+1) Set the TIME_INIT_ACC = 120 at line 43
+2) Set the VERBOSE_CALIBRATION to "true" at line 46
+3) Change the trajectory at line 193 to 3 (It will keep the robot into position) and comment the other ones.
+4) A message will be printed with the mean accelerations in all directions which are then hardcoded from line 136-140
 
 ## Adding files to Makefile
 In order to use the odometry and the kalman in controllers, they must be added with the relative path to the Makefile in the C_SOURCES. 
 eg. C_SOURCES= ../localization_controller/odometry.c ../localization_controller/kalman.c obstacle_leader.c
 ------------------------------- FLOCKING CONTROLLER ----------------------------------
+In the "robot_flock.c" you find the controller which pushes the robot to flock together in no particular order/formation
+The flock size is set to 5 and the various thresholds for the rules discussed in the report may be changed between line 41 and 54
+You may remove the migration urge by setting MIGRATION_WEIGHT 0 at line 56.
+
+If you would like to test the code for 5 robots with different origin positions, this must be done within the line 91-97 (GPS frame coordinates)  
+
 
 ------------------------------- FORMATION CONTROLLERS --------------------------------
 
