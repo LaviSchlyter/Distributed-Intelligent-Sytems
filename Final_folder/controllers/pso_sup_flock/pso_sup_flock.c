@@ -51,7 +51,8 @@
 #define DAMPING 0.6                     // damping of the particle velocity
 #define VMAX 30.0                       // Maximum velocity of particles by default
 #define VMAX_REYNOLD 30                 // Maximum velocity of particles for  reynold
-#define VMAX_TUNE 0
+#define VMAX_TUNE 0                     // Bool
+#define SCALING_REYNOLD 1000
 
 #define MIN_BRAITEN -200.0              // Lower bound on initialization value for braiten
 #define MAX_BRAITEN 200.0               // Upper bound on initialization value for braiten
@@ -106,12 +107,9 @@ char label2[20];
 // initial set of weight for pso
 double prior_knowledge[DATASIZE] = {17,29,34,10,8,-60,-64,-84, // Braitenberg right
                         //-80,-66,-62,8,10,36,28,18, // Braitenberg left
-                        0.2*1000, (0.6/10)*1000,      // rule1_tresh, rule1_weight
-                        0.15*1000, (0.02/10)*1000,    // rule2_tresh, rule2_weight
-                        (0.01/10*1000)};         // migration_weight
-
-
-// Prototypes
+                        0.2*SCALING_REYNOLD, (0.6/10)*SCALING_REYNOLD,      // rule1_tresh, rule1_weight
+                        0.15*SCALING_REYNOLD, (0.02/10)*SCALING_REYNOLD,    // rule2_tresh, rule2_weight
+                        (0.01/10*SCALING_REYNOLD)};         // migration_weight
 
 
 
@@ -227,11 +225,6 @@ int mod(int num, int base) {
 
 // Generate random number in [0,1]
 double rnd(void) {
-  return ((double)rand())/((double)RAND_MAX);
-}
-
-// Generate random number in [0,1]
-double rnd_rey(void) {
   return ((double)rand())/((double)RAND_MAX);
 }
 
@@ -483,7 +476,6 @@ void findPerformance(double particles[NB_PARTICLE][DATASIZE], double perf[NB_PAR
       }
     }
   }
-
 }
 
 
@@ -543,7 +535,7 @@ void pso(double best_weight[DATASIZE]){
           lbest[i][j] = particles[i][j];           // Best configurations are initially current configurations
           nbbest[i][j] = particles[i][j];
           if(j>=NB_SENSORS && VMAX_TUNE){
-              v[i][j] = 2.0*VMAX_REYNOLD*rnd_rey()-VMAX_REYNOLD;         // Random initial velocity
+              v[i][j] = 2.0*VMAX_REYNOLD*rnd()-VMAX_REYNOLD;         // Random initial velocity
           }
           else{
               v[i][j] = 2.0*VMAX*rnd()-VMAX;         // Random initial velocity
@@ -566,7 +558,7 @@ void pso(double best_weight[DATASIZE]){
           lbest[i][j] = particles[i][j];           // Best configurations are initially current configurations
           nbbest[i][j] = particles[i][j];
           if(j>=NB_SENSORS && VMAX_TUNE){
-              v[i][j] = 2.0*VMAX_REYNOLD*rnd_rey()-VMAX_REYNOLD;         // Random initial velocity
+              v[i][j] = 2.0*VMAX_REYNOLD*rnd()-VMAX_REYNOLD;         // Random initial velocity
           }
           else{
               v[i][j] = 2.0*VMAX*rnd()-VMAX;         // Random initial velocity
@@ -678,7 +670,6 @@ int main() {
     }
 
     return 0;
-
 }
 
 

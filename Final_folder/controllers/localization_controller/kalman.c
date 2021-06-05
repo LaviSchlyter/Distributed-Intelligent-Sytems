@@ -11,19 +11,19 @@
 
 
 /*CONSTANTS*/
-#define WHEEL_AXIS        0.057        // Distance between the two wheels in meter
-#define WHEEL_RADIUS            0.020        // Radius of the wheel in meter
-#define K                     0.05                               // da,mn
+#define WHEEL_AXIS        0.057        // Distance between the two wheels in meters
+#define WHEEL_RADIUS            0.020        // Radius of the wheel in meters
+#define K                     0.05           // Estimated
 #define true  1
 #define false 0
 
 #define VERBOSE_ACC_KAL false                       // Print the accelerometer Kalman
-#define VERBOSE_WHEEL_KAL false                       // Print the wheel encoder Kalman
+#define VERBOSE_WHEEL_KAL true                       // Print the wheel encoder Kalman
 
 int time_step;
 /// Variables to store the pose of wheel and the position+velocities for accelerometer
-static double X_wheel[3], X_acc[4];
-static double X_new_wheel[3], X_new_acc[4];
+static double X_wheel[3][1], X_acc[4][1];
+static double X_new_wheel[3][1], X_new_acc[4][1];
 
 /// Variables to store the "Kalman gain"
 static double K_wheel[3][3], K_acc[4][2];
@@ -32,6 +32,7 @@ static double K_wheel[3][3], K_acc[4][2];
 static pose_t _kal_wheel, _kal_acc;
 
 /// Time step of 16ms
+// This is hardcoded in order to not import webots files in here
 static const double dt = 0.016;
 
 // Record the last_gps_times
@@ -182,19 +183,24 @@ void transpose(int row, int col, double mat[][col], double mat_trans[][row]) {
  */
 void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double time_now, double Aleft_enc, double Aright_enc,
                       const pose_t pose_) {
-                      
-                      
 
-    // Because the GPS is only updated every second, the heading is not very accurate and we thus do not update the heading with GPS but keep the odometry value
+
+
+    // Because the GPS is only updated every second, the heading is not very accurate (this was tested in previous versions) and we thus do not update the heading with GPS but keep the odometry value
     double heading =  pos_kal_wheel ->heading;
-    double z[3] = {pose_.x, pose_.y, heading};    
+    double z[3][1] = {{pose_.x}, {pose_.y}, {heading}};
 
     // Convert from radians to meters
     Aleft_enc *= WHEEL_RADIUS;
     Aright_enc *= WHEEL_RADIUS;
-    
-    // Filter out absurd starting values
-    if (Aleft_enc <0.30 & Aright_enc < 0.3) {
+
+
+	/** Remove abusrd starting values
+
+	We noted that the first value of the encoder starts with NAN and causes absurd results, the following check verifies this absurd jump
+	And the small mistake in position which occurs because of skiping one iteration is negligable because of the small time step and is caught up with the GPS udpate (in Kalman when in use)
+	**/
+    if ( (Aleft_enc < 0.3) & (Aright_enc < 0.3) ) {
 
 
     const double delta_s = (Aright_enc + Aleft_enc) / 2;
@@ -203,14 +209,14 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
     if (VERBOSE_WHEEL_KAL) {
         printf("===============NEW STEP WHEEL KALMAN==================\n");
         printf("------------------ \n");
-        printf("x_wheel = %g,   y_wheel = %g   heading_wheel = %g \n", X_wheel[0], X_wheel[1], RAD2DEG(X_wheel[2]));
+        printf("x_wheel = %g,   y_wheel = %g   heading_wheel = %g \n", X_wheel[0][0], X_wheel[1][0], RAD2DEG(X_wheel[2][0]));
     }
 
     // Actuator noise
     double R[2][2] = {{K * fabs(Aright_enc), 0},
                       {0,                    K * fabs(Aleft_enc)}};
 
-    // Covariance 
+    // Covariance
     static double Cov[3][3] = {
             {1, 0, 0},
             {0, 1, 0},
@@ -240,11 +246,18 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
     double FuT[2][3];
     transpose(3, 2, Fu, FuT);
 
-    // Prediction step
+    /// Start Prediction step
 
-    double pred[3] = {delta_s * cos(heading + delta_theta / 2),
-                      delta_s * sin(heading + delta_theta / 2),
-                      delta_theta};
+    /** Prediction step for kalman with wheel encoders
+
+    	- X_new = X + pred
+    	- Cov_new = Fx*Cov*Fx^T + Fu*R*Fu^T
+
+    **/
+
+    double pred[3][1] = {{delta_s * cos(heading + delta_theta / 2)},
+                      {delta_s * sin(heading + delta_theta / 2)},
+                      {delta_theta}};
 
     // X(t+1) = X(t) + pred
     add(3, 1, X_wheel, pred, X_new_wheel, 1);
@@ -268,10 +281,21 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
     // Updated noise matrix
     // Cov = Fx * Cov * FxT + Fu * R * FuT
     add(3, 3, tmp2, tmp4, Cov, 1);
-    // End of prediction step 
 
-    // Correction step
-    // Measurement model 
+    /// End of prediction step
+
+    /// Correction step
+
+    /** Updating step for kalman with wheel encoders
+
+    	- K = Cov*C^T*(C)*Cov*C^T + Q)^-1 // Kalman Gain
+    	- X_new = X + K*(z - C*X)         // Updating measure
+    	- Cov_new = (I - K*C)*Cov         // Update covariance
+
+
+    **/
+
+    // Measurement model
     static double C[3][3] = {{1, 0, 0},
                              {0, 1, 0},
                              {0, 0, 1}};
@@ -280,7 +304,7 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
     transpose(3, 3, C, CT);
 
     // Covariance matrix, measurement noise (GPS)
-    // Do not trust the heading of GPS 
+    // Do not trust the heading of GPS
     static double Q[3][3] = {{0.001, 0,     0},
                              {0,     0.001, 0},
                              {0,     0,     1}};
@@ -291,12 +315,14 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
                                {0, 0, 1}};
 
     // Update using pose/GPS at every second
-    
+
     if (time_now - last_gps_time_whe > 1.0f) {
-    
+
+
         last_gps_time_whe = time_now;
 
-        /// Compute Kalman gain K
+        /// Start Compute Kalman gain K
+
         double tmp5[3][3];
         /// tmp5 = Cov_new * CT
         multiply(3, 3, Cov, 3, 3, CT, tmp5);
@@ -314,19 +340,27 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
         /// K = Cov_new * CT * inv(C*Cov_new*C_trans + Q)
         multiply(3, 3, tmp5, 3, 3, tmp7, K_wheel);
 
-        // Compute new X when "true" pose (gps) available
-        double tmp8[3];
+	/// End of Kalman gain computation
+
+
+        /// Start of updating computation // new X when "true" pose (gps) available
+
+        double tmp8[3][1];
         /// tmp8 = C*X_new
         multiply(3, 3, C, 3, 1, X_new_wheel, tmp8);
         /// tmp8 = z - C*X_new = z - tmp3
         substract(3, 1, z, tmp8, tmp8);
-        double tmp9[3];
+        double tmp9[3][1];
         /// tmp9 = K*tmp8 = K*(z - C*X_new)
         multiply(3, 3, K_wheel, 3, 1, tmp8, tmp9);
         /// X_new = X_new + K*(z - C*X_new)
         add(3, 1, tmp9, X_new_wheel, X_new_wheel, 1);
 
-        // Compute new covariance matrix
+        /// End of updating computation
+
+
+        /// Start Compute new covariance matrix
+
         double tmp10[3][3];
         /// tmp10 = K*C
         multiply(3, 3, K_wheel, 3, 3, C, tmp10);
@@ -337,23 +371,38 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
         /// Cov_new = Cov_new*(eye(4) - K*C)
         multiply(3, 3, tmp11, 3, 3, Cov, tmp12);
 
+        /// End Compute new covariance matrix
+
+
         // Assign to Cov the new values stored in tmp12
 
         for (int i = 0; i < 3; i++)
             for (int j = 0; j < 3; j++)
                 Cov[i][j] = tmp12[i][j];
     }
-    
+
+      	// Keep orientation within 0, 2pi
+  	while (X_new_wheel[2][0] > 2*M_PI) {
+          	X_new_wheel[2][0] -= 2.0*M_PI;
+
+  	}
+
+  	while (X_new_wheel[2][0] < 0) {
+          	X_new_wheel[2][0] += 2.0*M_PI;
+
+  	}
+
+
 
 
     /// Storing computed position into pose vector
-    _kal_wheel.x = X_new_wheel[0];
-    _kal_wheel.y = X_new_wheel[1];
-    _kal_wheel.heading = X_new_wheel[2];
+    _kal_wheel.x = X_new_wheel[0][0];
+    _kal_wheel.y = X_new_wheel[1][0];
+    _kal_wheel.heading = X_new_wheel[2][0];
 
-    X_wheel[0] = X_new_wheel[0];
-    X_wheel[1] = X_new_wheel[1];
-    X_wheel[2] = X_new_wheel[2];
+    X_wheel[0][0] = X_new_wheel[0][0];
+    X_wheel[1][0] = X_new_wheel[1][0];
+    X_wheel[2][0] = X_new_wheel[2][0];
 
     memcpy(pos_kal_wheel, &_kal_wheel, sizeof(pose_t));
     }
@@ -364,25 +413,27 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
 
 void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_now, const double heading,
                         const measurement_t meas_, const pose_t pose_) {
+    double acc_r = ( meas_.acc[1] - meas_.acc_mean[1]);
 
-    double acc_wx = meas_.acc[1] - meas_.acc_mean[1];
+    double acceleration[2][1] = {{acc_r*cos(heading)}, {acc_r*sin(heading)}};
 
-    double acc_wy = meas_.acc[0] - meas_.acc_mean[0];
-    double acceleration[2] = {acc_wx, acc_wy};
-
-    double z[2] = {pose_.x, pose_.y};
+    double z[2][1] = {{pose_.x}, {pose_.y}};
 
 
     if (VERBOSE_ACC_KAL) {
         printf("===============NEW STEP ACCELEROMETER KALMAN==================\n");
         printf("GPSx = %g,   GPSy = %g\n", meas_.gps[0], meas_.gps[2]);
         printf("------------------ \n");
-        printf("x_acc = %g,   y_acc = %g  \n", X_acc[0], X_acc[1]);
+        printf("x_acc = %g,   y_acc = %g  \n", X_acc[0][0], X_acc[1][0]);
         printf("-----------\n");
         printf("Heading acc = %g \n", heading);
     }
 
-    /// Covariance representing motion noise
+
+    /** Covariance representing motion noise
+    	Because we integrate twice for the position we estimate the noise to be a litte higher on the  (x,y)
+    	Reason for the slightly higher values
+    **/
     static double R[4][4] = {
             {0.05, 0,    0,    0},
             {0,    0.05, 0,    0},
@@ -401,8 +452,8 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
                              {0, 1, 0, 0}};
 
     /// Covariance matrix, measurement noise
-    static double Q[2][2] = {{1,  0.},
-                             {0., 1}};
+    static double Q[2][2] = {{0.001,  0.},
+                             {0., 0.001}};
 
     /// Transposed of C matrix
     static double CT[4][2];
@@ -414,7 +465,7 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
                                {0, 0, 1, 0},
                                {0, 0, 0, 1}};
 
-    /// Motion/Process model
+    /// State transition
     static double A[4][4] = {
             {1, 0, dt, 0},
             {0, 1, 0,  dt},
@@ -424,38 +475,59 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
     static double AT[4][4];
     transpose(4, 4, A, AT);
 
-    /// Control matrix
+    /// Input Control matrix
     static double B[4][2] = {
             {0,  0},
             {0,  0},
             {dt, 0},
             {0,  dt}};
 
-    /// Prediction step
+    /** Prediction step for kalman with accelerometer
 
-    double tmp1[4];
+    	- X_new = A*X + B*acc
+    	- A*Cov*A^T + R*dt
+
+    **/
+
+    double tmp1[4][1];
+    // tmp1 = A*X
     multiply(4, 4, A, 4, 1, X_acc, tmp1);
 
-    double tmp2[4];
+    double tmp2[4][1];
+    // tmp2 = B*acc
     multiply(4, 2, B, 2, 1, acceleration, tmp2);
 
+    // X_new = A*X + B*acc
     add(4, 1, tmp1, tmp2, X_new_acc, 1);
 
     /// Compute Cov_new without true pose (gps)
+
     double tmp4[4][4];
+    //tmp4 = A*Cov
     multiply(4, 4, A, 4, 4, Cov, tmp4);
     double tmp5[4][4];
+    // tmp5 = A*Cov*A^T
     multiply(4, 4, tmp4, 4, 4, AT, tmp5);
 
-    // The dt as scale is drawn from the lab on Kalman on webots
+    // The dt as scaling factor is drawn from the lab on Kalman on webots
+    // Cov = A*Cov*A^T + R*dt
     add(4, 4, tmp5, R, Cov, dt);
 
-    /// Updating step
+     /** Updating step for kalman with accelerometer
+
+    	- K = Cov*C^T*(C)*Cov*C^T + Q)^-1 // Kalman Gain
+    	- X_new = X + K*(z - C*X)         // Updating measure
+    	- Cov_new = (I - K*C)*Cov         // Update covariance
+
+
+    **/
+
     if (time_now - last_gps_time_acc > 1.0f) {
 
         last_gps_time_acc = time_now;
 
-        /// Compute Kalman gain
+        /// Start Compute Kalman gain
+
         double tmp8[4][2];
         // tmp8 = Cov_new*CT
         multiply(4, 4, Cov, 4, 2, CT, tmp8);
@@ -473,11 +545,16 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
         // K = Cov_new*CT* inv(C* Cov_new*CT + Q)
         multiply(4, 2, tmp8, 2, 2, tmp10, K_acc);
 
-        double tmp3[2];
+        /// End of Kalman gain computation
+
+
+	/// Start Updating measure
+
+        double tmp3[2][1];
         // tmp3 = C*X_new (2x1)
         multiply(2, 4, C, 4, 1, X_new_acc, tmp3);
 
-        double tmp11[4];
+        double tmp11[4][1];
         // tmp3 = z - C*X_new = z - tmp3
         substract(2, 1, z, tmp3, tmp3);
         // tmp3 = K*tmp3 = K*(z - C*X_new)
@@ -485,7 +562,11 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
         // X_new = X_new + K*(z - C*X_new)
         add(4, 1, tmp11, X_new_acc, X_new_acc, 1);
 
-        // Compute new covariance matrix
+        /// End of Updating measure
+
+
+        /// Start Compute new covariance matrix
+
         double tmp6[4][4];
         // tmp6 = K*C
         multiply(4, 2, K_acc, 2, 4, C, tmp6);
@@ -495,24 +576,43 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
         substract(4, 4, Id4, tmp6, tmp7);
         // Cov_new = Cov_new*(eye(4) - K*C)
         multiply(4, 4, Cov, 4, 4, tmp7, tmp6);
+
+        /// End updating of covariance
+
         // Assign to Cov the new values stored in tmp6
         for (int i = 0; i < 4; i++)
             for (int j = 0; j < 4; j++)
                 Cov[i][j] = tmp6[i][j];
+
     }
 
-    /// Storing computed position into pose vector
-    _kal_acc.x = X_new_acc[0];
-    _kal_acc.y = X_new_acc[1];
+    /// Storing computed position into "kalman pose" vector
+    _kal_acc.x = X_new_acc[0][0];
+    _kal_acc.y = X_new_acc[1][0];
     _kal_acc.heading = heading;
 
 
-    X_acc[0] = X_new_acc[0];
-    X_acc[1] = X_new_acc[1];
-    X_acc[2] = X_new_acc[2];
-    X_acc[3] = X_new_acc[3];
+    X_acc[0][0] = X_new_acc[0][0];
+    X_acc[1][0] = X_new_acc[1][0];
+    X_acc[2][0] = X_new_acc[2][0];
+    X_acc[3][0] = X_new_acc[3][0];
 
     memcpy(pos_kal_acc, &_kal_acc, sizeof(pose_t));
 
 
+}
+
+void kal_reset()
+{
+ 	memset(&X_wheel, 0 , sizeof(double));
+
+	memset(&X_acc, 0 , sizeof(double));
+
+	memset(&X_new_wheel, 0 , sizeof(double));
+
+        memset(&X_new_acc, 0 , sizeof(double));
+
+	memset(&_kal_wheel, 0 , sizeof(pose_t));
+
+	memset(&_kal_acc, 0 , sizeof(pose_t));
 }

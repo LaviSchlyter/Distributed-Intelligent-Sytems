@@ -27,7 +27,7 @@
 #include "../localization_controller/kalman.h"
 
 #define VERBOSE           0
-#define NB_SENSORS	     8	 // Number of distance sensors
+#define NB_SENSORS	      8	     // Number of distance sensors
 #define MIN_SENS          350    // Minimum sensibility value
 #define MAX_SENS          4096   // Maximum sensibility value
 #define MAX_SPEED         800    // Maximum speed
@@ -37,28 +37,14 @@
 #define TIME_STEP	       64	 // [ms] Length of time step
 
 #define AXLE_LENGTH 		0.052	// Distance between wheels of robot (meters)
-#define SPEED_UNIT_RADS	0.00628	// Conversion factor from speed unit to radian per second
+#define SPEED_UNIT_RADS	    0.00628	// Conversion factor from speed unit to radian per second
 #define WHEEL_RADIUS		0.0205	// Wheel radius (meters)
-#define DELTA_T		0.064	// Timestep (seconds)
+#define DELTA_T		        0.064	// Timestep (seconds)
 
 // PSO
 #define SIM_STEPS 600                   // number of simulation steps/iterations
 #define DATASIZE NB_SENSORS+5         // Number of elements in particle (2 Neurons with 8 proximity sensors and 5 params for flocking)
 #define SCALING_REYNOLD 1000
-
-// Reynolds
-#define RULE1_THRESHOLD     0.2   // Threshold to activate aggregation rule. default 0.20
-#define RULE1_WEIGHT        (0.6/10)*1	   // Weight of aggregation rule. default 0.6/10
-
-#define RULE2_THRESHOLD     0.15   // Threshold to activate dispersion rule. default 0.15
-#define RULE2_WEIGHT        (0.02/10)*1	   // Weight of dispersion rule. default 0.02/10
-
-#define RULE3_WEIGHT        (1.0/10)*0   // Weight of consistency rule. default 1.0/10
-
-#define MIGRATION_WEIGHT    (0.01/10)   // Wheight of attraction towards the common goal. default 0.01/10
-
-#define MIGRATORY_URGE 1 // Tells the robots if they should just go forward or move towards a specific migratory direction
-
 
 WbDeviceTag left_motor; //handler for left wheel of the robot
 WbDeviceTag right_motor; //handler for the right wheel of the robot
@@ -148,7 +134,7 @@ static void reset() {
 	//Reading the robot's name. Pay attention to name specification when adding robots to the simulation!
 	sscanf(robot_name,"epuck%d",&robot_id_u); // read robot id from the robot's name
 	robot_id = robot_id_u%FLOCK_SIZE;	  // normalize between 0 and FLOCK_SIZE-1
-	
+
 	if(robot_id==0){ // print robot data (ENLEVER)
     	  robot_verbose=1;
 	}
@@ -161,7 +147,7 @@ static void reset() {
 
     migr[0] = 0; // TODO
     migr[1] = -25;
-          // Receiver and emiter PSO
+    // Receiver and emiter PSO
     emit_pso = wb_robot_get_device("emitter_epuck_pso");
     rec_pso = wb_robot_get_device("receiver_epuck_pso");
     wb_receiver_enable(rec_pso, TIME_STEP/2);
@@ -187,24 +173,24 @@ void update_self_motion(int msl, int msr) {
 	float dr = (float)msr * SPEED_UNIT_RADS * DELTA_T; //radians
 	float dl = (float)msl * SPEED_UNIT_RADS  * DELTA_T;
 
-	
+
 	int time_step_ = wb_robot_get_basic_time_step();
 	double time_now_s = wb_robot_get_time();
 
-	
+
         // Position from GPS
         // Position with frame initial point stored in _pose vector
-        
+
         controller_get_pose_gps();
-	
+
 	// Update odometry with wheel encoders using pose (GPS derived)
 	compute_kalman_wheels(&_kal_wheel, time_step_, time_now_s, dl,
                                        dr, _pose);
-       
+
   	my_position[0] = _kal_wheel.x;
   	my_position[1] = _kal_wheel.y;
   	my_position[2] = _kal_wheel.heading;
-  	
+
   	// Keep orientation within 0, 2pi
 	if (my_position[2] > 2*M_PI) my_position[2] -= 2.0*M_PI;
 	if (my_position[2] < 0) my_position[2] += 2.0*M_PI;
@@ -223,7 +209,7 @@ void compute_wheel_speeds(int *msl, int *msr) {
 	float Kw = 0.5;  // Rotational control coefficient
 	float range = sqrtf(x*x + z*z);	  // Distance to the wanted position
 	float bearing = -atan2(x, z);	  // Orientation of the wanted position
-	
+
 	// Compute forward control
 	float u = Ku*range*cosf(bearing);
 	// Compute rotational controlcontroller_get_pose_gps
@@ -240,14 +226,13 @@ void compute_wheel_speeds(int *msl, int *msr) {
 /*
  *  Update speed according to Reynold's rules
  */
-void reynolds_rules() {
+void reynolds_rules(rule1_weight, rule1_threshold, rule2_weight, rule2_threshold, migration_weight) {
 
 	int i, j, k;			// Loop counters
 	float rel_avg_loc[2] = {0,0};	// Flock average positions
 	float rel_avg_speed[2] = {0,0};	// Flock average speeds
 	float cohesion[2] = {0,0};
 	float dispersion[2] = {0,0};
-	float consistency[2] = {0,0};
 
 
 	/* Compute averages over the whole flock */
@@ -267,7 +252,7 @@ void reynolds_rules() {
 	/* Rule 1 - Aggregation/Cohesion: move towards the center of mass */
 
     for (j=0;j<2;j++) {
-        if (sqrt(pow(rel_avg_loc[0],2)+pow(rel_avg_loc[1],2)) > RULE1_THRESHOLD) {
+        if (sqrt(pow(rel_avg_loc[0],2)+pow(rel_avg_loc[1],2)) > rule1_threshold) {
             cohesion[j] = rel_avg_loc[j];
         }
     }
@@ -276,7 +261,7 @@ void reynolds_rules() {
 	for (k=0;k<FLOCK_SIZE;k++) {
 		if (k != robot_id) {        // Loop on flockmates only
 			// If neighbor k is too close (Euclidean distance)
-			if (sqrt(pow(relative_pos[k][0],2)+pow(relative_pos[k][1],2)) < RULE2_THRESHOLD) {
+			if (sqrt(pow(relative_pos[k][0],2)+pow(relative_pos[k][1],2)) < rule2_threshold) {
 				for (j=0;j<2;j++) {
 					dispersion[j] -= 1/(relative_pos[k][j]);	// Relative distance to k
 				}
@@ -284,32 +269,17 @@ void reynolds_rules() {
 		}
 	}
 
-	/* Rule 3 - Consistency/Alignment: match the speeds of flockmates */
-	for (j=0;j<2;j++) {
-		consistency[j] = rel_avg_speed[j];
-		//consistency[j] = 0;
-    }
 
     //aggregation of all behaviors with relative influence determined by weights
 	for (j=0;j<2;j++) {
-       speed[robot_id][j] = cohesion[j] * RULE1_WEIGHT;
-       speed[robot_id][j] +=  dispersion[j] * RULE2_WEIGHT;
-       speed[robot_id][j] +=  consistency[j] * RULE3_WEIGHT;
-
+       speed[robot_id][j] = cohesion[j] * rule1_weight;
+       speed[robot_id][j] +=  dispersion[j] * rule2_weight;
 	}
 	speed[robot_id][1] *= -1; //y axis of webots is inverted
 
 	//move the robot according to some migration rule
-	if(MIGRATORY_URGE == 0){
-	  speed[robot_id][0] += 0.01*cos(my_position[2] + M_PI/2);
-	  speed[robot_id][1] += 0.01*sin(my_position[2] + M_PI/2);
-	} 
-	else {
-        	
-  	        speed[robot_id][0] += (migr[0]-my_position[0]) * MIGRATION_WEIGHT;
-		speed[robot_id][1] -= (migr[1]-my_position[1]) * MIGRATION_WEIGHT; //y axis of webots is inverted
-  	        
-	}
+    speed[robot_id][0] += (migr[0]-my_position[0]) * migration_weight;
+    speed[robot_id][1] -= (migr[1]-my_position[1]) * migration_weight; //y axis of webots is inverted
 }
 
 
@@ -390,16 +360,6 @@ double simulation_webot(double weights[DATASIZE+1]){
         sens_val[i] = 0.0;
     }
 
-
-  // Update intial position  
-  my_position[0]=0;
-  my_position[1]=0;
-  my_position[2]=0;
-  prev_my_position[0]=0;
-  prev_my_position[1]=0;
-  prev_my_position[2]=0;
-
-  // Forever
   for(j=0;j<SIM_STEPS;j++){
     bmsl = 0; bmsr = 0;
     sum_sensors = 0;
@@ -412,7 +372,7 @@ double simulation_webot(double weights[DATASIZE+1]){
         max_sens = max_sens>ds_value[i]?max_sens:ds_value[i]; // Check if new highest sensor value
         if(VERBOSE&&1&&robot_verbose){printf("robot%d Sensor%d = %d\n", robot_id_u, i,ds_value[i]);}
         // Weighted sum of distance sensor values for Braitenburg vehicle
-        bmsr += weights[i] * ds_value[i];//moi 2
+        bmsr += weights[i] * ds_value[i];
         bmsl += (weights[NB_SENSORS-1-i]+2) * ds_value[i];
     }
 
@@ -420,6 +380,7 @@ double simulation_webot(double weights[DATASIZE+1]){
     bmsl/=MIN_SENS; bmsr/=MIN_SENS;
     bmsl+=66; bmsr+=72;
     if(VERBOSE && 1 && robot_verbose){printf("Bmsl=%d, Bmsr=%d\n", bmsl, bmsr);}
+
     /* Send and get information */
     send_ping();  // sending a ping to other robot, so they can measure their distance to this robot
 
@@ -586,18 +547,27 @@ int main() {
         }
         if( 1 && robot_verbose){printf("************************ Weight ***************************\n");}
         new_weights = (double *)wb_receiver_get_data(rec_pso);
-        
+        if( 1 && robot_verbose){printf("Robot %d : %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf\n         %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf\n %.2lf, %.2lf, %.2lf, %.4lf, %.4lf\n----------------------------\n",robot_id, new_weights[0], new_weights[1],new_weights[2], new_weights[3], new_weights[4], new_weights[5],new_weights[6], new_weights[7],new_weights[7]+2, new_weights[6]+2, new_weights[5]+2, new_weights[4]+2, new_weights[3]+2, new_weights[2]+2, new_weights[1]+2, new_weights[0]+2, new_weights[8], new_weights[9],new_weights[10], new_weights[11], new_weights[12]);}
+
+        // Update initial position
+        my_position[0]=0;
+        my_position[1]=0;
+        my_position[2]=0;
+        prev_my_position[0]=0;
+        prev_my_position[1]=0;
+        prev_my_position[2]=0;
         _pose_origin_robot_0.y = new_weights[DATASIZE];
         _pose_origin_robot_1.y = new_weights[DATASIZE];
         _pose_origin_robot_2.y = new_weights[DATASIZE];
         _pose_origin_robot_3.y = new_weights[DATASIZE];
         _pose_origin_robot_4.y = new_weights[DATASIZE];
         controller_get_pose_gps();
-        
-        if( 1 && robot_verbose){printf("Robot %d : %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf\n         %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf, %.2lf\n %.2lf, %.2lf, %.2lf, %.4lf, %.4lf\n----------------------------\n",robot_id, new_weights[0], new_weights[1],new_weights[2], new_weights[3], new_weights[4], new_weights[5],new_weights[6], new_weights[7],new_weights[7]+2, new_weights[6]+2, new_weights[5]+2, new_weights[4]+2, new_weights[3]+2, new_weights[2]+2, new_weights[1]+2, new_weights[0]+2, new_weights[8], new_weights[9],new_weights[10], new_weights[11], new_weights[12]);}
+        kal_reset();
+
         // run simulation
         if(VERBOSE && 1 && robot_verbose){printf("Begin simulation robot%d...\n", robot_id);}
         fitness = simulation_webot(new_weights);
+
         if(VERBOSE && 1 && robot_verbose){printf("End simulation...\n");}
         end_sim[0]=fitness;
         wb_emitter_send(emit_pso,(void *)end_sim,sizeof(double));
@@ -609,7 +579,6 @@ int main() {
 
 
 // Functions used for Kalman
-
 void controller_get_pose_gps() {
 
     double time_now_s = wb_robot_get_time();
@@ -619,9 +588,9 @@ void controller_get_pose_gps() {
         //printf("\nEntered pose computation\n");
 
         last_gps_time_s = time_now_s;
-        // This is for the robot which is starting 
+        // This is for the robot which is starting
         if (robot_id_u == 0) {
-        
+
         _pose.x = _meas.gps[0] - _pose_origin_robot_0.x;
 
         _pose.y = -(_meas.gps[2] - _pose_origin_robot_0.y);
@@ -635,8 +604,8 @@ void controller_get_pose_gps() {
 
         _pose.heading = -controller_get_heading_gps() + _pose_origin_robot_1.heading;
         //printf("Entered pose heading =%lf\n", _pose.heading);
-        
-        } 
+
+        }
         else if (robot_id_u == 2) {
         _pose.x = _meas.gps[0] - _pose_origin_robot_2.x;
 
@@ -644,9 +613,9 @@ void controller_get_pose_gps() {
 
         _pose.heading = -controller_get_heading_gps() + _pose_origin_robot_2.heading;
         //printf("Entered pose heading =%lf\n", _pose.heading);
-        
-        } 
-         
+
+        }
+
          else if (robot_id_u == 3) {
         _pose.x = _meas.gps[0] - _pose_origin_robot_3.x;
 
@@ -654,23 +623,23 @@ void controller_get_pose_gps() {
 
         _pose.heading = -controller_get_heading_gps() + _pose_origin_robot_3.heading;
         //printf("Entered pose heading =%lf\n", _pose.heading);
-        
+
         }
         else if (robot_id_u == 4){
-        
-        
+
+
         _pose.x = _meas.gps[0] - _pose_origin_robot_4.x;
 
         _pose.y = -(_meas.gps[2] - _pose_origin_robot_4.y);
 
 
         _pose.heading = -controller_get_heading_gps() + _pose_origin_robot_4.heading;
-        
+
          //printf("Entered pose heading =%lf\n", _pose.heading);
-        
+
         }
-        
-       
+
+
     }
 }
 
@@ -683,18 +652,18 @@ void controller_get_gps() {
 
     /// Stores in memory at address of _meas.prev_gps; the data of _meas.gps
     memcpy(_meas.prev_gps, _meas.gps, sizeof(_meas.gps));
-    
+
 
     // Get position
     const double *gps_position = wb_gps_get_values(dev_gps);
-    
+
 
     // Stores in memory at address of _meas.gps, the data of computed gps_position
     memcpy(_meas.gps, gps_position, sizeof(_meas.gps));
     //printf("_meas GPS x = %g , y = %g\n", _meas.gps[0], _meas.gps[2]);
     //printf("PREV_meas GPS x = %g , y = %g\n", _meas.prev_gps[0], _meas.prev_gps[2]);
 
-    
+
     //printf("GPSx = %g, GPSy = %g\n", _meas.gps[0], _meas.gps[2]);
 
 }
@@ -726,24 +695,24 @@ double controller_get_heading_gps() {
 void controller_get_encoder() {
     // Store previous value of the left encoder
     _meas.prev_left_enc = _meas.left_enc;
-    
-     
+
+
     _meas.left_enc = wb_position_sensor_get_value(left_encoder);
     // If nan // That is you are at the first itteration
     if (isnan(_meas.left_enc)) {
     _meas.left_enc = 0.0;
-    
+
     ;}
-    
-    
+
+
     // Store previous value of the right encoder
     _meas.prev_right_enc = _meas.right_enc;
-    
+
 
     _meas.right_enc = wb_position_sensor_get_value(right_encoder);
         if (isnan(_meas.right_enc)) {
     _meas.right_enc = 0.0;
-    
+
     ;}
 }
 
