@@ -162,9 +162,9 @@ Each one of these controllers has several functionalities, that will be describe
 
 -------------------------------------Localization Supervisor  ---------------------------------------
 
-The supervisor computes the true position of the robots in a log file in order to compute the fitness metrics on matlab.
+The supervisor computes the true position of the robots in a log file in order to compute the fitness metrics on Matlab.
 
-The flock size is defined at line 22, and must be changed according to the number in the world
+The flock size is defined at line 22, and must be changed according to the number of robots in the world before running each simulation.
 
 Robot_ID depends on the simulation ran:
 
@@ -173,13 +173,18 @@ Robot_ID depends on the simulation ran:
 - line 28, 30, 32 must be commented
 
 ** For simulations on the crossing world with 2 robots on each team
-- Uncomment line 28 and comment 30,32
+- Uncomment line 28 and comment 25,30,32
 
 ** For simulations on the crossing world with 3 robots on each team
-- Uncomment line 30 and comment 28,32
+- Uncomment line 30 and comment 25,28,32
 
 ** For simulations on the crossing world with 4 robots on each team
-- Uncomment line 32 and comment 28,30
+- Uncomment line 32 and comment 25,28,30
+
+-------------------------------------Matlab codes  ---------------------------------------
+
+The different Matlab codes are used to compute the metrics. In order to do this, they read the log files written by the supervisor (and eventually by the robots controllers themselves), extract true (and approximated) positions and compute the metrics values. These metrics values are then stored, and can be used to generate graphs.
+
 
 
 
