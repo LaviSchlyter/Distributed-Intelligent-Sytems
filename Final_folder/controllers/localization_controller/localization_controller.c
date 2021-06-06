@@ -5,6 +5,7 @@
 /* Description:  Computing position in the robot frame using odometry and kalman   */
 /*               Pose update using GPS (on robot frame) starting at second =1      */
 /*                                                                                 */
+/* Author:       Lavinia Schylter and Clément Cosson                               */
 /**************************************************************************************************************************/
 
 
