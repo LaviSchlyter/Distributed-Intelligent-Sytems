@@ -128,6 +128,7 @@ int main() {
 
     if (CATCH_ERR(controller_init(), "Controller fails to init \n"))
         return 1;
+    
     time_step = wb_robot_get_basic_time_step();
     init_devices(time_step);
     odo_reset(time_step);
@@ -161,7 +162,7 @@ int main() {
                 controller_get_encoder();
                 
                 double time_now_s = wb_robot_get_time();
-                time_step = wb_robot_get_basic_time_step();
+                
                 
                 /// Compute position from wheel encoders
                 odo_compute_encoders(&_odo_enc, _meas.left_enc - _meas.prev_left_enc,
