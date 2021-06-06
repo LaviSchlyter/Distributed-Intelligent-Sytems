@@ -31,10 +31,20 @@ Final Folder
 
 ------------------------------- LOCALIZATION CONTROLLER -----------------------------
 
-In the *localization_controller.c*, we run a main file which computes the position of the robot of interest using odometry with the accelerometer as well and the wheel encoder but also the updated version which uses GPS coordinates at every second (NOTE: Starts at second =1 and not zero) for both odometries. 
+**localization_controller.c**
+We run a main file which computes the position of the robot of interest using odometry with the accelerometer as well and the wheel encoder but also the updated version which uses GPS coordinates at every second (NOTE: Starts at second =1 and not zero) for both odometries. 
 
-Note: The localization is w.r.t to the world frame (for the directions) but w.r.t robot for the values. 
-The frame used (where z points outside of the screen perpendicular to the plane) for position is depicted below. The values are taken w.r.t the robot.
+## Calibrate accelerometer (localization_controller.c)
+In order to calibrate the accelerometer, that is to compute its bias, please follow the following instructions:
+1) Set the TIME_INIT_ACC = 120 at line 43
+2) Set the VERBOSE_CALIBRATION to "true" at line 46
+3) Change the trajectory at line 193 to 3 (It will keep the robot into position) and comment the other ones.
+4) A message will be printed with the mean accelerations in all directions which are then hardcoded from line 136-140
+5) Copy the values in line 137 to 140
+
+
+
+Note: The revelant frame used in this project for the robot is shown below (for a robot starting from the left). If the robot starts from the right (that is, it is heading to the left) the x axis is inverted. This is done in order to ease computation with relative positions. The angle is computed w.r.t the x-axis anti-clockwards for positive.
 y
 ^
 |
@@ -46,19 +56,24 @@ y
    z  
    
 Because we are updating using the GPS but we want it in the relative to robot frame, we shift the GPS using the initial position of the robot stored in _pose_origin = {x, y, heading}; 
-You may note that throughout the worlds these are hard coded and must be changed if needed.
-Note: Because updating the heading with GPS is not optimal as discussed in the report; the _pose.heading is not used in the updating step (refer to kalman.c)
+You may note that throughout the worlds these are hard coded and must be changed if needed (expect when the supervisor is present such as in PSO) where the start positions are shifted on the y-axis 
+and these new start positions are sent to the controller.
+Note: Because updating the heading with GPS is not optimal as discussed in the report; the _pose.heading is not used in the updating step (refer to kalman.c, where the z vector representing the update vector, the third component (for the wheel encoder) keeps its own heading.
 
-## Calibrate accelerometer
-In order to calibrate the accelerometer, that is to compute its bias, please follow the following instructions:
-1) Set the TIME_INIT_ACC = 120 at line 43
-2) Set the VERBOSE_CALIBRATION to "true" at line 46
-3) Change the trajectory at line 193 to 3 (It will keep the robot into position) and comment the other ones.
-4) A message will be printed with the mean accelerations in all directions which are then hardcoded from line 136-140
 
-## Adding files to Makefile
+**odometry.c**
+Use the accelerometer and wheel encoder in order to compute the position of the robots. The heading for accelerometer is not computed and uses the wheel encoders instead.
+
+**kalman.c**
+Updating both odometry measures by using the shifted GPS (_pose vector) every second 
+
+
+
+## Adding kalman and odometry to Makefile
 In order to use the odometry and the kalman in controllers, they must be added with the relative path to the Makefile in the C_SOURCES. 
-eg. C_SOURCES= ../localization_controller/odometry.c ../localization_controller/kalman.c obstacle_leader.c
+(eg. C_SOURCES= ../localization_controller/odometry.c ../localization_controller/kalman.c obstacle_leader.c)
+
+
 ------------------------------- FLOCKING CONTROLLER ----------------------------------
 In the "robot_flock.c" you find the controller which pushes the robot to flock together in no particular order/formation
 The flock size is set to 5 and the various thresholds for the rules discussed in the report may be changed between line 41 and 54
