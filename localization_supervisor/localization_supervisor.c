@@ -1,11 +1,11 @@
 /*****************************************************************************/
-/* File:         project_supervisor.c                                    */
+/* File:         project_supervisor.c                                        */
 /* Version:      1.0                                                         */
 /* Date:         21-Apr-21                                                   */
-/* Description: This supervisor writes down the true position of the robots in a 
-/* log file.
+/* Description: This supervisor writes down the true position of the robots  */
+/* in a log file. This is used later on to compute fitness metrics.                                                                */
 /*                                                                           */
-/* Author: 	 Clément Cosson			     */
+/* Author: 	 Clément Cosson			            */
 /*****************************************************************************/
 
 #include <stdio.h>
@@ -18,9 +18,19 @@
 #include <webots/emitter.h>
 #include <webots/supervisor.h>
 
-//These two parameters must be adapted for each flock
+//These parameters must be adapted for each flock and world
 #define FLOCK_SIZE	5 		// Total number of robots in simulation
-static int robot_id[FLOCK_SIZE] = {0,1,2,3,4,5,6,7,8,9}; //names of robots: epuck%d
+static int robot_id[14] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13}; //names of robots: epuck%d
+//Uncomment the line above for all simulations in the obstacle or localization world, 
+//or for crossing with 2 teams of 5 or more robots.
+//Else, use:
+//For crossing with 2 robots in each team:
+//static int robot_id[14] = {0,1,5,6}; //names of robots: epuck%d
+//For crossing with 3 robots in each team:
+//static int robot_id[14] = {0,1,2,5,6,7}; //names of robots: epuck%d
+//For crossing with 4 robots in each team:
+//static int robot_id[14] = {0,1,2,4,5,6,7,9}; //names of robots: epuck%d
+
 
 #define TIME_STEP	16		// [ms] Length of time step
 
@@ -30,15 +40,12 @@ static WbFieldRef robs_rotation[FLOCK_SIZE];    // Robots rotation fields
 
 //define variables
 float t = 0;
-float loc[FLOCK_SIZE][3];	// True location of everybody in the flock
-float apr_loc[FLOCK_SIZE][3]; //Approximate locations
+float loc[FLOCK_SIZE][3];	// True location of each robot in the flock
 static FILE *fp = NULL;
 static double time_step;
-// + migration goal x and z
 
 /*
- * Initialize flock position and devices. Use only once at the beginning
- *  of main function.
+ * Initialize robots devices. 
  */
 void reset_robots(void) {
 	wb_robot_init();
@@ -51,16 +58,16 @@ void reset_robots(void) {
 		robs_translation[i] = wb_supervisor_node_get_field(robs[i],"translation");
 		robs_rotation[i] = wb_supervisor_node_get_field(robs[i],"rotation");
                       sscanf(rob, "epuck%d", &robot_id[i]);
-                      printf("rob number %d initialized\n",robot_id[i]);
+                      printf("rob number %d initialized in supervisor\n",robot_id[i]);
 	}
 
 	return; 
 
 }
 
+// Initialize the log file 
 void supervisor_init_log(const char* filename)
 {
-  //printf("%s", filename);
   fp = fopen(filename,"w");
   
   //Check that the file was opened correctly
@@ -70,20 +77,16 @@ void supervisor_init_log(const char* filename)
   else {
   printf("Opening file was a success.\n");
   }
-  
-  printf("t0 = %g\n",t);
-  printf("ts = %g\n",time_step);
+ 
   
   //print header values
   fprintf(fp, "time;"); 
   for(int i=0;i<FLOCK_SIZE;i++)
   {
     fprintf(fp, "true_x_rob%d; true_y_rob%d; true_heading_rob%d", robot_id[i], robot_id[i], robot_id[i]); 
-    //fprintf(fp, "true_x; true_y; true_heading"); 
      if (i != FLOCK_SIZE-1){
-			  //for all robots except the last, add ','
-			  fprintf(fp, ";");
-			  //printf(fp, ";");
+	//for all robots except the last, add ';'
+	fprintf(fp, ";");
 		  }
   }
   fprintf(fp, "\n"); 
@@ -98,8 +101,8 @@ void supervisor_print_log()
 	//Each line will contain the true position of each robot and time
   if( fp != NULL)
     {	
+             //Write time at the beginning of the line
 	  fprintf(fp,"%g;",t);
-	  //printf(fp,"%g;",t);
 	  //For each robot, write true x, y and heading
 	  for (int i=0;i<FLOCK_SIZE;i++) {
 	      fprintf(fp,"%g; %g; %g", loc[i][0], loc[i][1], loc[i][2]);
@@ -107,12 +110,10 @@ void supervisor_print_log()
 	      if (i != FLOCK_SIZE-1){
 			  //for all robots except the last, add ','
 			  fprintf(fp, ";");
-			  //printf(fp, ";");
 		  }
                   else{
 	  //Start new line if last robot
         	  fprintf(fp, "\n");
-	  //printf(fp, "\n");   
 	  }
 	  }
 
@@ -140,7 +141,6 @@ int main(int argc, char *args[]) {
 			loc[i][0] = wb_supervisor_field_get_sf_vec3f(robs_translation[i])[0]; // X
 			loc[i][1] = wb_supervisor_field_get_sf_vec3f(robs_translation[i])[2]; // Z
 			loc[i][2] = wb_supervisor_field_get_sf_rotation(robs_rotation[i])[3]; // THETA
-			//printf("Robot %d: x = %g, y = %g, heading = %g\n",i,loc[i][0],loc[i][1],loc[i][2]);
 			
 		}
 		//Write down true positions in a log file 
@@ -151,9 +151,5 @@ int main(int argc, char *args[]) {
   fclose(fp);
 }
 
-/*In main:
-define filename = "Apr_loc_rob_x"
-supervisor_init_log(filename);
-*/
 
 
