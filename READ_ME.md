@@ -30,6 +30,11 @@ Final Folder
 │   ...etc    
 │       
 ```
+------------------------------- OPTIMAL SETTINGS FOR THE DIFFERENT WORLDS -----------------------------
+World "localization": Kalman filter with wheel encoder and low-frequency GPS returns the best localization.
+World "crossing": Mataric PI controller, with non-PSO weights for both leader and followers.
+World "obstacles": Laplacian with maximum number of edges, with PSO weights for followers only.
+
 ------------------------------- LOCALIZATION CONTROLLER -----------------------------
 
 **localization_controller.c**
@@ -80,6 +85,7 @@ If you would like to test the code for 5 robots with different origin positions,
 The leader-follower architecture is implemented to move in formation toward a common goal. In each flock, there is always one leader and the other robots are followers. 
 For the leader, one controller has been implemented for each world (crossing_leader, obstacle_leader) 
 .For the followers, two controllers have been implemented for each world (crossing_follower_laplacian, crossing_follower_mataric, obstacle_follower_laplacian, obstacle_follower_mataric).
+Note that by default we will run the best set of weight for each world: they come either from PSO optimization or are hand-tuned empirical values. It is however possible to change this setting, by changing the PSO value to 0 or 1 manually.
 Each one of these controllers has several functionalities, that will be described for each world below: 
 
 -- "Obstacles" and "test_obstacles" world -- mataric controller:
@@ -157,7 +163,7 @@ Each one of these controllers has several functionalities, that will be describe
 
 ------------------------------------------ PSO ---------------------------------------
 
-
+The PSO codes are standard implementations of the PSO algorithm, with a few project-specific twists. Four different codes were developed, for tuning different set of parameters (Braitenberg weights, follower rotational and forward control command, Reynold's rules weights and tresholds as well as obstacle avoidance parameters). 
 
 
 -------------------------------------Localization Supervisor  ---------------------------------------
@@ -183,7 +189,13 @@ Robot_ID depends on the simulation ran:
 
 -------------------------------------Matlab codes  ---------------------------------------
 
-The different Matlab codes are used to compute the metrics. In order to do this, they read the log files written by the supervisor (and eventually by the robots controllers themselves), extract true (and approximated) positions and compute the metrics values. These metrics values are then stored, and can be used to generate graphs.
+The different Matlab codes are used to compute the metrics. In order to do this, they read the log files written by the supervisor (and eventually by the robots controllers themselves), extract true (and approximated) positions and compute the metrics values. These metrics values are then stored as matrices, and can be used to generate graphs.
+
+When wanting to compute a certain metric for a certain world, follow these steps:
+1) Run the simulation in webots on the desired world with the desired number of robots. Be sure to include the supervisor code, it is necessary for metric calculation.
+2) Run the Matlab code to compute desired metric: compute_metric_x, x can be localization, formation or flocking. At the beginning  of the code, change the parameters for the different conditions (number of robots and teams, world and controller type, etc...). Some of the codes also automatically create figures.
+3) The code will automatically save the metrics in the file metric_values. They can later be re-loaded to create comparative graphs.
+
 
 
 
