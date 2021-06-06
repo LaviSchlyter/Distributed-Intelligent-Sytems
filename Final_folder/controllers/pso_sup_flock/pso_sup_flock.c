@@ -63,10 +63,10 @@
 // Tune PSO
 #define NB_NEIGHBOURS 2                 // Number of neighbors on each side
 #define LWEIGHT 2.0                     // Weight of attraction to personal best
-#define NBWEIGHT 4.0                    // Weight of attraction to neighborhood best
+#define NBWEIGHT 2.0                    // Weight of attraction to neighborhood best
 #define DAMPING 0.6                     // damping of the particle velocity
 #define VMAX 30.0                       // Maximum velocity of particles by default
-#define ITS_PSO 100                     // Number of iterations to run
+#define ITS_PSO 20                      // Number of iterations to run
 #define FINALRUNS 1                     // Number of final run to evaluate the final fitness
 #define N_RUNS 1                        // Number of PSO run
 #define WEIGHT_DFL 1                    // Weight for dfl fitness
@@ -78,7 +78,6 @@
 #define EVOLVE 0          // Find new fitness
 #define EVOLVE_AVG 1      // Average new fitness into total
 #define SELECT 2          // Find more accurate fitness for best selection
-
 
 /* Fitness definitions */
 #define TARGET_FLOCKING_DISTANCE ROB_RAD*4    // Targeted flocking distance (2 robot diameters)

@@ -73,13 +73,10 @@
 #define WEIGHT_FIT_OBSTACLE 1           // Weight for the obstacle avoidance fitness
 #define WEIGHT_FIT_FLOCKING 1           // Weight for the flocking fitness
 
-
-
 /* Types of fitness evaluations */
 #define EVOLVE 0          // Find new fitness
 #define EVOLVE_AVG 1      // Average new fitness into total
 #define SELECT 2          // Find more accurate fitness for best selection
-
 
 /* Fitness definitions */
 #define TARGET_FLOCKING_DISTANCE ROB_RAD*4    // Targeted flocking distance (2 robot diameters)
@@ -147,6 +144,7 @@ void reset(void) {
   }
   wb_robot_step(TIME_STEP*4);
 }
+
 
 // Copy one particle to another
 void copyParticle(double particle1[DATASIZE], double particle2[DATASIZE]) {
@@ -222,6 +220,7 @@ void updateNBPerf(double lbest[NB_PARTICLE][DATASIZE], double lbestperf[NB_PARTI
     }
   }
 }
+
 
 // Find the modulus of an integer
 int mod(int num, int base) {
