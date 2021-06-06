@@ -4,7 +4,7 @@ This project aims at implementing a navigation strategy for a multi-robot system
 
 The code is written in C and is runnable on Weebots. The metrics and plots and performed in Matlab.
 
-### AUTHORS = Clément Cosson, Paco Mermoud, Tiffany Pereira and Lavinia Schlyter
+**AUTHORS** = Clément Cosson, Paco Mermoud, Tiffany Pereira and Lavinia Schlyter
 
 
 The Final folder contains three directories:
@@ -164,3 +164,36 @@ Each one of these controllers has several functionalities, that will be describe
 
 
 ------------------------------------------ PSO ---------------------------------------
+
+
+
+
+-------------------------------------Localization Supervisor  ---------------------------------------
+The supervisor computes the true position of the robots in a log file in ordet o compute the fitness metrics on matlab.
+
+The flock size is defined at line 22, and must be changed according to the number in the world
+
+Robot_ID depends on the simulation ran:
+
+** For simulations in the obstacle or localization world or for crossing with 2 teams of 4 or more robots (each)
+- line 25 must be kept 
+- line 28, 30, 32 must be commented
+
+** For simulations on the crossing world with 2 robots on each team
+- Uncomment line 28 and comment 30,32
+
+** For simulations on the crossing world with 3 robots on each team
+- Uncomment line 30 and comment 28,32
+
+** For simulations on the crossing world with 4 robots on each team
+- Uncomment line 32 and comment 28,30
+
+
+
+
+
+
+
+
+
+
