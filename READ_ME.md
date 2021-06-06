@@ -161,12 +161,19 @@ Each one of these controllers has several functionalities, that will be describe
     - (FLOCK_SIZE = 5, NB_EDGES = 10) 
 
 ------------------------------------------ PSO ---------------------------------------
+To optimize the parameters of PSO we use the following worlds:
+pso_world_simplified_avoidance.wbt : To optimize the obstacle avoidance parameters
+pso_world_simplified_formation.wbt : To optimize the followers' formation controller parameters
+pso_world_simplified_flocking.wbt : To optimize the flocking parameters
+pso_world_flocking.wbt : To optimize both flocking and obstacle avoidance parameters
+
+
 The PSO codes are standard implementations of the PSO algorithm, with a few project-specific twists. Four different codes were developed, for tuning different set of parameters (Braitenberg weights, follower rotational and forward control command, Reynold's rules weights and tresholds as well as obstacle avoidance parameters). All PSOs use the same general architectures.
 Different options are available on all PSO controllers:
-1) Parameter x, (line y): Noise resistant PSO is more robust to "lucky" bad solutions.
-2) Parameter x, (line y): Bounded parameters search space to avoid nonsensical values.
-3) Parameter x, line y: Robots respawn positions can either be fixed (robots will always respawn at the same location in arena) or random (the y axis of the robot flock has a random component).
-4) Parameter x, line y: Initial parameter values can either be fully random or use some user knowledge and start with an empirical value set.
+1) Noise resistant PSO is more robust to "lucky" bad solutions.
+2) Bounded parameters search space to avoid nonsensical values.
+3) Robots respawn positions can either be fixed (robots will always respawn at the same location in arena) or random (the y axis of the robot flock has a random component).
+4) Initial parameter values can either be fully random or use some user knowledge and start with an empirical value set.
 
 
 -------------------------------------Localization Supervisor  ---------------------------------------
