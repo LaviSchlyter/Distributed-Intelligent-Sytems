@@ -4,6 +4,7 @@
 /* Date:         06-Jun-21                                                         */
 /* Description:  Computation for locating with accelerometer and wheel encoders   */
 /*                                                                                 */
+/* Author:       Lavinia Schlyter                                                  */
 /**************************************************************************************************************************/
 #include <stdio.h>
 #include <string.h>
