@@ -46,15 +46,7 @@ In order to calibrate the accelerometer, that is to compute its bias, please fol
 
 
 Note: The revelant frame used in this project for the robot is shown below (for a robot starting from the left). If the robot starts from the right (that is, it is heading to the left) the x axis is inverted. This is done in order to ease computation with relative positions. The angle is computed w.r.t the x-axis anti-clockwards for positive.
-y
-^
-|
-|
-------> x
-\
- \
-  \
-   z  
+
    
 Because we are updating using the GPS but we want it in the relative to robot frame, we shift the GPS using the initial position of the robot stored in _pose_origin = {x, y, heading}; 
 You may note that throughout the worlds these are hard coded and must be changed if needed (expect when the supervisor is present such as in PSO) where the start positions are shifted on the y-axis 
