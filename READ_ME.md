@@ -29,6 +29,16 @@ Final Folder
 │   ...etc    
 │       
 
+
+project/
+    text.md
+    subpro/
+       subtext.md
+       subsubpro/
+           subsubtext.md
+       subsubpro2/
+           subsubtext2.md
+
 ------------------------------- LOCALIZATION CONTROLLER -----------------------------
 
 **localization_controller.c**
