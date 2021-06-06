@@ -9,6 +9,7 @@ The code is written in C and is runnable on Weebots. The metrics and plots and p
 
 The Final folder contains three directories:
 
+``` bash
 Final Folder
 ├── Matlab
 ├── controllers
@@ -28,17 +29,7 @@ Final Folder
 │   └── crossing.wbt
 │   ...etc    
 │       
-
-
-project/
-    text.md
-    subpro/
-       subtext.md
-       subsubpro/
-           subsubtext.md
-       subsubpro2/
-           subsubtext2.md
-
+```
 ------------------------------- LOCALIZATION CONTROLLER -----------------------------
 
 **localization_controller.c**
