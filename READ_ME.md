@@ -31,6 +31,7 @@ Final Folder
 │       
 ```
 ------------------------------- OPTIMAL SETTINGS FOR THE DIFFERENT WORLDS -----------------------------
+
 World "localization": Kalman filter with wheel encoder and low-frequency GPS returns the best localization.
 World "crossing": Mataric PI controller, with non-PSO weights for both leader and followers.
 World "obstacles": Laplacian with maximum number of edges, with PSO weights for followers only.
@@ -50,7 +51,7 @@ In order to calibrate the accelerometer, that is to compute its bias, please fol
 
 
 
-Note: The revelant frame used in this project for the robot is shown below (for a robot starting from the left). If the robot starts from the right (that is, it is heading to the left) the x axis is inverted. This is done in order to ease computation with relative positions. The angle is computed w.r.t the x-axis anti-clockwards for positive.
+Note: The relevant frame used in this project for the robot is shown below (for a robot starting from the left). If the robot starts from the right (that is, it is heading to the left) the x axis is inverted. This is done in order to ease computation with relative positions. The angle is computed w.r.t the x-axis anti-clockwards for positive.
 
    
 Because we are updating using the GPS but we want it in the relative to robot frame, we shift the GPS using the initial position of the robot stored in _pose_origin = {x, y, heading}; 
@@ -163,7 +164,12 @@ Each one of these controllers has several functionalities, that will be describe
 
 ------------------------------------------ PSO ---------------------------------------
 
-The PSO codes are standard implementations of the PSO algorithm, with a few project-specific twists. Four different codes were developed, for tuning different set of parameters (Braitenberg weights, follower rotational and forward control command, Reynold's rules weights and tresholds as well as obstacle avoidance parameters). 
+The PSO codes are standard implementations of the PSO algorithm, with a few project-specific twists. Four different codes were developed, for tuning different set of parameters (Braitenberg weights, follower rotational and forward control command, Reynold's rules weights and tresholds as well as obstacle avoidance parameters). All PSOs use the same general architectures.
+Different options are available on all PSO controllers:
+1) Parameter x, (line y): Noise resistant PSO is more robust to "lucky" bad solutions.
+2) Parameter x, (line y): Bounded parameters search space to avoid nonsensical values.
+3) Parameter x, line y: Robots respawn positions can either be fixed (robots will always respawn at the same location in arena) or random (the y axis of the robot flock has a random component).
+4) Parameter x, line y: Initial parameter values can either be fully random or use some user knowledge and start with an empirical value set.
 
 
 -------------------------------------Localization Supervisor  ---------------------------------------
