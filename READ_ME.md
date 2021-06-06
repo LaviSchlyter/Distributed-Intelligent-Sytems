@@ -161,7 +161,6 @@ Each one of these controllers has several functionalities, that will be describe
     - (FLOCK_SIZE = 5, NB_EDGES = 10) 
 
 ------------------------------------------ PSO ---------------------------------------
-
 The PSO codes are standard implementations of the PSO algorithm, with a few project-specific twists. Four different codes were developed, for tuning different set of parameters (Braitenberg weights, follower rotational and forward control command, Reynold's rules weights and tresholds as well as obstacle avoidance parameters). All PSOs use the same general architectures.
 Different options are available on all PSO controllers:
 1) Parameter x, (line y): Noise resistant PSO is more robust to "lucky" bad solutions.
