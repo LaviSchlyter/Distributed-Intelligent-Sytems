@@ -20,6 +20,8 @@
 #include <webots/distance_sensor.h>
 #include <webots/emitter.h>
 #include <webots/receiver.h>
+#include <webots/gps.h>
+#include <webots/position_sensor.h>
 
 #include "../localization_controller/utils.h"
 #include "../localization_controller/odometry.h"
@@ -46,8 +48,8 @@
 #define RULE2_WEIGHT        (0.02/10)*1       // Weight of dispersion rule. 
 
 /** 
-As we have seen in the lab, the constistency rule may cause some issues and 
-we thus set it to zero and use the migration urge 
+  As we have seen in the lab, the constistency rule may cause some issues and 
+  we thus set it to zero and use the migration urge 
 **/
 #define RULE3_WEIGHT        (1.0/10)*0   // Weight of consistency rule. 
 
