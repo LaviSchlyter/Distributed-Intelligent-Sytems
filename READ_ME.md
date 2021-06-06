@@ -161,7 +161,8 @@ Each one of these controllers has several functionalities, that will be describe
 
 
 -------------------------------------Localization Supervisor  ---------------------------------------
-The supervisor computes the true position of the robots in a log file in ordet o compute the fitness metrics on matlab.
+
+The supervisor computes the true position of the robots in a log file in order to compute the fitness metrics on matlab.
 
 The flock size is defined at line 22, and must be changed according to the number in the world
 
