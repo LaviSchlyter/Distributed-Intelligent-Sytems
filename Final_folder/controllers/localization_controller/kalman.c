@@ -4,7 +4,6 @@
 /* Date:         06-Jun-21                                                   */
 /* Description:  Compute the odometry with a GPS update every second           */
 /*                                                                           */
-/* Author:      06-Jun-21 by Lavinia Schlyter and Clément Cosson             */
 /*****************************************************************************/
 #include <stdio.h>
 #include <string.h>
