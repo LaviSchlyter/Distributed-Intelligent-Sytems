@@ -10,7 +10,7 @@ WorldInfo {
 }
 Viewpoint {
   orientation 1 0 0 4.71238898038469
-  position -1.5784226819608367e-16 9.252531832601717 0
+  position -2.421392766819579e-16 8.994427628449753 7.229343253047428e-16
 }
 PointLight {
   intensity 0.5
@@ -301,7 +301,7 @@ DEF rock Solid {
   }
 }
 DEF rock Solid {
-  translation -0.759092 0 -0.778263
+  translation -0.0518126 0 -0.404422
   rotation 0 -1 0 2.05704
   children [
     Shape {
@@ -426,7 +426,7 @@ DEF rock Solid {
   }
 }
 DEF rock Solid {
-  translation -0.03594 -1.77636e-15 0.1537
+  translation 0.20406 -1.77636e-15 0.1537
   children [
     Shape {
       appearance Appearance {
@@ -522,7 +522,31 @@ DEF rock Solid {
   }
 }
 DEF rock Solid {
-  translation -1.21394 0 -0.864014
+  translation -0.43594 -1.77636e-15 -1.2763
+  children [
+    Shape {
+      appearance Appearance {
+        material Material {
+          diffuseColor 1 1 1
+        }
+        texture ImageTexture {
+          url [
+            "textures/stone-2.png"
+          ]
+        }
+      }
+      geometry Box {
+        size 0.15 0.2 0.15
+      }
+    }
+  ]
+  name "short brick(13)"
+  boundingObject DEF U_END_BOX Box {
+    size 0.15 0.2 0.15
+  }
+}
+DEF rock Solid {
+  translation -1.30866 0 -0.896004
   rotation 0 -1 0 0.325642
   children [
     Shape {
@@ -572,7 +596,7 @@ DEF rock Solid {
   }
 }
 DEF rock Solid {
-  translation -1.49506 0 -1.25239
+  translation -1.49506 0 -1.42239
   children [
     Shape {
       appearance Appearance {
@@ -620,7 +644,7 @@ DEF rock Solid {
   }
 }
 DEF rock Solid {
-  translation -1.12299 0 0.813952
+  translation -1.29267 0 0.983657
   rotation 0 1 0 0.785398
   children [
     Shape {
@@ -645,7 +669,7 @@ DEF rock Solid {
   }
 }
 DEF rock Solid {
-  translation -0.84594 -1.77636e-15 1.1837
+  translation -0.75594 -1.77636e-15 1.3137
   children [
     Shape {
       appearance Appearance {
@@ -718,7 +742,7 @@ DEF rock Solid {
   }
 }
 DEF rock Solid {
-  translation -0.755728 0 0.08223
+  translation -0.508508 0 0.170436
   rotation 0 1 0 0.523599
   children [
     Shape {
@@ -842,7 +866,7 @@ DEF supervisor Robot {
   supervisor TRUE
 }
 DEF epuck0 Robot {
-  translation -2.9 0 0
+  translation -2.9 0 6.97889e-06
   rotation 0 1 0 -1.5708
   children [
     Receiver {
@@ -874,7 +898,7 @@ DEF epuck0 Robot {
         }
       ]
       endPoint DEF EPUCK_LEFT_WHEEL Solid {
-        translation -0.025999999999999423 0.02 0
+        translation -0.025999999999999395 0.02 0
         rotation 1 0 0 3.996129904161135
         children [
           DEF EPUCK_WHEEL Transform {
@@ -1030,7 +1054,7 @@ DEF epuck0 Robot {
         }
       ]
       endPoint DEF EPUCK_RIGHT_WHEEL Solid {
-        translation 0.025999999999999756 0.02 0
+        translation 0.02599999999999977 0.02 0
         rotation 1 0 0 3.831165102177967
         children [
           Transform {
@@ -2265,7 +2289,7 @@ DEF epuck1 Robot {
         }
       ]
       endPoint DEF EPUCK_LEFT_WHEEL Solid {
-        translation -0.025999999999999687 0.02 0
+        translation -0.025999999999999673 0.02 0
         rotation 1 0 0 2.7854170002741
         children [
           DEF EPUCK_WHEEL Transform {
@@ -2421,7 +2445,7 @@ DEF epuck1 Robot {
         }
       ]
       endPoint DEF EPUCK_RIGHT_WHEEL Solid {
-        translation 0.02599999999999966 0.02 0
+        translation 0.025999999999999687 0.02 0
         rotation 1 0 0 4.153976938077484
         children [
           Transform {
@@ -3657,7 +3681,7 @@ DEF epuck2 Robot {
         }
       ]
       endPoint DEF EPUCK_LEFT_WHEEL Solid {
-        translation -0.025999999999999763 0.02 0
+        translation -0.025999999999999652 0.02 0
         rotation 1 0 0 5.312734371735818
         children [
           DEF EPUCK_WHEEL Transform {
@@ -3813,7 +3837,7 @@ DEF epuck2 Robot {
         }
       ]
       endPoint DEF EPUCK_RIGHT_WHEEL Solid {
-        translation 0.02599999999999946 0.02 0
+        translation 0.02599999999999949 0.02 0
         rotation -1 0 0 2.0238180019809597
         children [
           Transform {
@@ -5049,7 +5073,7 @@ DEF epuck3 Robot {
         }
       ]
       endPoint DEF EPUCK_LEFT_WHEEL Solid {
-        translation -0.025999999999999465 0.02 0
+        translation -0.02599999999999936 0.02 0
         rotation -1 0 0 2.3485137142344357
         children [
           DEF EPUCK_WHEEL Transform {
@@ -5205,7 +5229,7 @@ DEF epuck3 Robot {
         }
       ]
       endPoint DEF EPUCK_RIGHT_WHEEL Solid {
-        translation 0.025999999999999555 0.02 0
+        translation 0.025999999999999576 0.02 0
         rotation -1 0 0 6.160235126415191
         children [
           Transform {
@@ -6441,7 +6465,7 @@ DEF epuck4 Robot {
         }
       ]
       endPoint DEF EPUCK_LEFT_WHEEL Solid {
-        translation -0.025999999999999367 0.02 0
+        translation -0.02599999999999925 0.02 0
         rotation 0.9999999999999999 0 0 5.8495033293794405
         children [
           DEF EPUCK_WHEEL Transform {
@@ -6597,7 +6621,7 @@ DEF epuck4 Robot {
         }
       ]
       endPoint DEF EPUCK_RIGHT_WHEEL Solid {
-        translation 0.025999999999999655 0.02 0
+        translation 0.0259999999999996 0.02 0
         rotation 1 0 0 0.06395581583228444
         children [
           Transform {

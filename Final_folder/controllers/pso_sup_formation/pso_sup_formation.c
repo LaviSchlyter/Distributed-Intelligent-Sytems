@@ -2,11 +2,12 @@
 /* File:         pso_sup_formation.c                                           */
 /* Version:      1.0                                                           */
 /* Date:         01-Mai-21                                                     */
-/* Description:  PSO for the crossing formation (laplacian) with a group       */
-/*               public  heterogenous method.                                  */
+/* Description:  PSO for the obstacle formation (laplacian) with a group       */
+/*               public homogeneous method. (on follower only)                 */
 /*                                                                             */
 /* Author:       Paco Mermoud                                                  */
 /*****************************************************************************************************************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -16,8 +17,16 @@
 #include <webots/supervisor.h>
 #include <webots/robot.h>
 
+/* Tunable parameters: ------------------------------------------------------
+ NOISY : activate the noise resistance PSO with reevaluation of the best performance
+ DOMAIN_WEIGHT : Limit the parameters of the PSO in the domain
+ RND_POS : Spawn all the robot in a fixed configuration at different location on the z-axis
+ PRIOR_KNOWLEDGE : Initialize the first particles weight to the hand-tune value found empiricaly */
+
 #define NOISY 1
-#define DOMAIN_WEIGHT 1
+#define DOMAIN_WEIGHT 0
+#define RND_POS 1
+#define PRIOR_KNOWLEDGE 0
 
 #if NOISY == 1
 #define ITS_COEFF 1.0     // Multiplier for number of iterations
@@ -25,15 +34,21 @@
 #define ITS_COEFF 2.0     // Multiplier for number of iterations
 #endif
 
+// Limit Domain
+#define MIN_BRAITEN -200.0              // Lower bound on initialization value for braiten
+#define MAX_BRAITEN 200.0               // Upper bound on initialization value for braiten
+#define MIN_P 1                         // Lower bound on initialization value for P
+#define MAX_P 100                       // Upper bound on initialization value for P
+
+// OTHERS
 #define FONT "Arial"
-#define NB_INIT_POS 5 // number of fixed pos
-#define FLOCK_SIZE 5
-#define ROBOTS 1
-#define ROB_RAD 0.035
-#define WHEEL_RADIUS 0.0205	// Wheel radius (meters)
-#define MAX_SPEED  6.28        // maximum speed of the robots
-#define NB_SENSORS 8
-#define TIME_STEP	64		// [ms] Length of time step
+#define FLOCK_SIZE 5                    // Number of robots
+#define ROBOTS 1                        // Number of robot with different particles
+#define ROB_RAD 0.035                   // Radius of the robots
+#define WHEEL_RADIUS 0.0205         	// Wheel radius (meters)
+#define MAX_SPEED  6.28                 // maximum speed of the robots
+#define NB_SENSORS 8                    // Number of distance sensors
+#define TIME_STEP	64		            // [ms] Length of time step
 
 /* PSO definitions */
 #define NB_PARTICLE 9                   // Number of particles in swarm
@@ -41,33 +56,23 @@
 #define MAX_WEIGHT_P 0                  // Maximum of a particles weight/threshold for one of P's rule
 #define MIN_WEIGHT_BRAITEN -200         // Minimum of a particles weight for braiten
 #define MAX_WEIGHT_BRAITEN 200          // Maximum of a particles weight for braiten
-#define PRIOR_KNOWLEDGE 1
+#define SCALING_P 100                   // Scaling factor for lower parameters in PSO (Put every parameters at the same range of magnitude)
+#define DATASIZE NB_SENSORS+4           // Number of elements in particle
 
+// Tune PSO
 #define NB_NEIGHBOURS 2                 // Number of neighbors on each side
 #define LWEIGHT 2.0                     // Weight of attraction to personal best
 #define NBWEIGHT 4.0                    // Weight of attraction to neighborhood best
 #define DAMPING 0.6                     // damping of the particle velocity
 #define VMAX 30.0                       // Maximum velocity of particles by default
-#define VMAX_P 2                        // Maximum velocity of particles for  P
-#define VMAX_TUNE 0                     // Boolean to differentiate VMAX for different weight
-#define SCALING_P 100
-
-#define MIN_BRAITEN -200.0              // Lower bound on initialization value for braiten
-#define MAX_BRAITEN 200.0               // Upper bound on initialization value for braiten
-#define MIN_P 1                         // Lower bound on initialization value for Ps
-#define MAX_P 100                       // Upper bound on initialization value for Ps
 #define ITS_PSO 50                      // Number of iterations to run
-#define DATASIZE NB_SENSORS+4           // Number of elements in particle
-#define FINALRUNS 1
-#define N_RUNS 1
-#define WEIGHT_DFL 1
-#define WEIGHT_V 1
-#define WEIGHT_FIT_OBSTACLE 1
-#define WEIGHT_FIT_FLOCKING 1
+#define FINALRUNS 1                     // Number of final run to evaluate the final fitness
+#define N_RUNS 1                        // Number of PSO run
+#define WEIGHT_DFL 1                    // Weight for dfl fitness
+#define WEIGHT_V 1                      // Weight for v fitness
+#define WEIGHT_FIT_OBSTACLE 1           // Weight for the obstacle avoidance fitness
+#define WEIGHT_FIT_FLOCKING 1           // Weight for the flocking fitness
 
-
-/* Initial position of robots */
-#define RND_POS 1               // Initialize weight with 'set_init_pos'
 
 
 /* Types of fitness evaluations */
@@ -77,9 +82,9 @@
 
 
 /* Fitness definitions */
-#define TARGET_FLOCKING_DISTANCE ROB_RAD*4 // targeted flocking distance (2 robot diameters)
+#define TARGET_FLOCKING_DISTANCE ROB_RAD*4    // Targeted flocking distance (2 robot diameters)
 
-#define PI 3.1415926535897932384626433832795
+#define PI 3.1415926535897932384626433832795  // Number Pi
 
 
 static WbNodeRef epucks[FLOCK_SIZE];
@@ -87,6 +92,8 @@ WbDeviceTag emitter[FLOCK_SIZE];
 WbDeviceTag rec[FLOCK_SIZE];
 const double *loc[FLOCK_SIZE];
 const double *rot[FLOCK_SIZE];
+double new_loc[FLOCK_SIZE][3];
+double new_rot[FLOCK_SIZE][4];
 
 // Relative position of each robots
 const double rel_init_pos_robot[FLOCK_SIZE][2]={{-2.8,0},
@@ -95,15 +102,14 @@ const double rel_init_pos_robot[FLOCK_SIZE][2]={{-2.8,0},
                                              {-2.8,0.2},
                                              {-2.8,-0.2},
                                              };
+
+// Ideal distance from the leader of each robot (for formation metric)
 const double bias[FLOCK_SIZE][2]={{0,0},
                                  {-0.1,0.1},
                                  {-0.1,-0.1},
                                  {-0.2,0.2},
                                  {-0.2,-0.2},
-                                 };                                            
-double new_loc[FLOCK_SIZE][3];
-double new_rot[FLOCK_SIZE][4];
-int num_leader = 0;  //robot id of the leader
+                                 };
 
 // Print in webots FONT
 char label[50];
@@ -114,7 +120,6 @@ double prior_knowledge[DATASIZE] = {17,29,34,10,8,-60,-64,-84, // Braitenberg ri
                         //-80,-66,-62,8,10,36,28,18, // Braitenberg left
                         1800, 70,      // avoidance threshold, formation threshold
                         0.2*SCALING_P, 0.4*SCALING_P};   // Ku, Kw
-
 
 
 /* RESET - Get device handles and starting locations */
@@ -234,13 +239,12 @@ double rnd(void) {
 
 // Randomly position specified robot
 double init_pos(int rob_id) {
-  static double rnd_posz=0;
-  double posz_rob_pso=0;
+  static double rnd_posz=0;  // Z-position of the first robot (origin of the group)
+  double posz_rob_pso=0;     // Robot's position in the z-axis
   if(rob_id==0){
     rnd_posz = (1.8-ROB_RAD)*rnd() - (1.8-ROB_RAD)/2.0;
   }
-  if(!RND_POS){
-    //printf("Setting random position for %d\n",rob_id);
+  if(!RND_POS){ // Fixed position
     new_rot[rob_id][0] = 0.0;
     new_rot[rob_id][1] = -1.0;
     new_rot[rob_id][2] = 0.0;
@@ -277,7 +281,7 @@ double init_pos(int rob_id) {
         break;
      }
    }
-   else{
+   else{ // Rnd position
      new_rot[rob_id][0] = 0.0;
      new_rot[rob_id][1] = -1.0;
      new_rot[rob_id][2] = 0.0;
@@ -289,17 +293,20 @@ double init_pos(int rob_id) {
      posz_rob_pso = rnd_posz + rel_init_pos_robot[rob_id][1];
    }
 
+  // Teleport the robot
   wb_supervisor_field_set_sf_vec3f(wb_supervisor_node_get_field(epucks[rob_id],"translation"), new_loc[rob_id]);
   wb_supervisor_field_set_sf_rotation(wb_supervisor_node_get_field(epucks[rob_id],"rotation"), new_rot[rob_id]);
   return posz_rob_pso;
 }
 
+
+// Send the weights to the robots, continuously compute the metric of the simulation and return the associated fitness
 void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
   double buffer[255];
   double *rbuffer;
-  double dmax = (double) TIME_STEP/1000*MAX_SPEED*WHEEL_RADIUS;
-  double posz_rob_pso;
-  int i,j;
+  double posz_rob_pso;    // save robot position in the z-axis to send it to the robot controller (for GPS)
+  int i,j;                // iterator for-loop
+
   /* Send data to robots */
   for (i=0;i<FLOCK_SIZE;i++) {
     posz_rob_pso=init_pos(i);
@@ -311,26 +318,28 @@ void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
   }
   wb_supervisor_simulation_reset_physics();
 
-  // Fitness flocking
+  // Fitness Formation
   double Mfo=0;  // formation control metric
-  double v=0;   // velocity of the team towards the goal direction
-  double dfo=0; // Distance follower from Leader w. r. t. the bias
-  double dfo_temp=0;
-  double unused=0;
-  int counter = 0; // count how many time the fitness is computed
-  double pre_ctr_x = 0;
-  double pre_ctr_z = 0;
-  double ctr_x = 0;
-  double ctr_z = 0;
-  double pos_loc_x[FLOCK_SIZE]; 
-  double pos_loc_z[FLOCK_SIZE]; 
-  
+  double v=0;    // velocity of the team towards the goal direction
+  double dfo=0;  // Distance follower from Leader w. r. t. the bias
+  double dfo_temp=0;    // Temp variable to calculate dfo
+  double unused=0;      // Trash for unused variable
+  int counter = 0;      // count how many time the fitness is computed
+  double pre_ctr_x = 0; // previous center of the flock in the x-axis
+  double pre_ctr_z = 0; // previous center of the flock in the z-axis
+  double ctr_x = 0;     // current center of the flock in the x-axis
+  double ctr_z = 0;     // current center of the flock in the z-axis
+  double pos_loc_x[FLOCK_SIZE]; // Difference of position from leader in the x-axis
+  double pos_loc_z[FLOCK_SIZE]; // Difference of position from leader in the z-axis
+  double dmax = (double) TIME_STEP/1000*MAX_SPEED*WHEEL_RADIUS;  // Distance max reach in one time step
+
+
 
   // Initialise the center of the flock -----
   for (i=0;i<FLOCK_SIZE;i++) {
       loc[i] = wb_supervisor_field_get_sf_vec3f(wb_supervisor_node_get_field(epucks[i],"translation"));
       pos_loc_x[i]=0;
-      pos_loc_z[i]=0; 
+      pos_loc_z[i]=0;
   }
 
   //calculate position of the flock center
@@ -347,10 +356,12 @@ void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
     counter++;
     wb_robot_step(TIME_STEP);
 
+    // Stock current location of each robots
     for (i=0; i<FLOCK_SIZE ; i++){
       loc[i]= wb_supervisor_field_get_sf_vec3f(wb_supervisor_node_get_field(epucks[i],"translation"));
     }
 
+    // Calculate fitness
     //calculate position of the flock center
      ctr_x = 0;
      ctr_z = 0;
@@ -365,13 +376,13 @@ void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
     v += (double) sqrt(pow(pre_ctr_x-ctr_x,2)+pow(pre_ctr_z-ctr_z,2))/dmax*WEIGHT_V;
     pre_ctr_x = ctr_x; // save the center of the flock
     pre_ctr_z = ctr_z;
-    
+
     // calculate df0(t)
     dfo_temp=0;
     for (i=0; i<FLOCK_SIZE ; i++){
        if(i==0){  //Leader
            pos_loc_x[i]=0;
-           pos_loc_z[i]=0; 
+           pos_loc_z[i]=0;
        }
        else{  //folowers
            pos_loc_x[i]=loc[i][0]-loc[0][0];
@@ -385,26 +396,26 @@ void fitness(double weights[ROBOTS][DATASIZE], double fit[ROBOTS]) {
     dfo+=dfo_temp;
 
   }
-  // normalization
+
+  // Normalization
   dfo/=counter;
   v/=counter;
-  //compute final flocking metric
+
+  // Compute final formation metric
   Mfo=dfo*v;
-   
-   printf("End simulation superviser.\n");
 
-   /* Get fitness values from robots */
-   //printf("fitness avoidance : \n");
-
-   for (i=0;i<FLOCK_SIZE;i++) {
+  /* Get fitness values from robots */
+  for (i=0;i<FLOCK_SIZE;i++) {
       rbuffer = (double *)wb_receiver_get_data(rec[i]);
-      //printf("rob%d :%lf  ", i, rbuffer[0]);
       unused += rbuffer[0];
       wb_receiver_next_packet(rec[i]);
-   }
+  }
 
+  // Assign fitness
+  fit[0] = Mfo;
 
-  fit[0] = Mfo; //TODO
+  // Print results
+  printf("End simulation superviser.\n");
   printf("\nfit formation (%0.2lf) = dfo(%0.2lf) + v (%0.2lf)\n",fit[0], dfo, v);
   printf("\n -------------------------------------------------------------------\n");
 }
@@ -424,7 +435,7 @@ void findPerformance(double particles[NB_PARTICLE][DATASIZE], double perf[NB_PAR
         particles_sim[j][k] = particles[i+j][k];
       }
     }
-    // USER MUST IMPLEMENT FITNESS FUNCTION
+    // FITNESS FUNCTION
     if (type == EVOLVE_AVG) {
       fitness(particles_sim,fit);
       for (j=0;j<ROBOTS && i+j<NB_PARTICLE;j++) {
@@ -495,6 +506,7 @@ void pso(double best_weight[DATASIZE]){
     }
   }
 
+  // Display iteration number
   sprintf(label, "Iteration: 0");
   wb_supervisor_set_label(0,label,0.01,0.01,0.1,0xffffff,0,FONT);
 
@@ -508,18 +520,13 @@ void pso(double best_weight[DATASIZE]){
           particles[i][j]=prior_knowledge[j];
           lbest[i][j] = particles[i][j];           // Best configurations are initially current configurations
           nbbest[i][j] = particles[i][j];
-          if(j>=NB_SENSORS && VMAX_TUNE){
-              v[i][j] = 2.0*VMAX_P*rnd()-VMAX_P;         // Random initial velocity
-          }
-          else{
-              v[i][j] = 2.0*VMAX*rnd()-VMAX;         // Random initial velocity
-          }
+          v[i][j] = 2.0*VMAX*rnd()-VMAX;         // Random initial velocity
       }
 
       // Randomly assign initial value in [min,max]
       else{
           if(j>=NB_SENSORS){
-          // min and max for flocking weight init
+          // min and max for formation weight init
               min=MIN_P;
               max=MAX_P;
           }
@@ -528,25 +535,24 @@ void pso(double best_weight[DATASIZE]){
               min=MIN_BRAITEN;
               max=MAX_BRAITEN;
           }
+
+          // Compute initial velocity in the search space
           particles[i][j] = (max-min)*rnd()+min;
           lbest[i][j] = particles[i][j];           // Best configurations are initially current configurations
           nbbest[i][j] = particles[i][j];
-          if(j>=NB_SENSORS && VMAX_TUNE){
-              v[i][j] = 2.0*VMAX_P*rnd()-VMAX_P;         // Random initial velocity
-          }
-          else{
-              v[i][j] = 2.0*VMAX*rnd()-VMAX;         // Random initial velocity
-          }
+          v[i][j] = 2.0*VMAX*rnd()-VMAX;         // Random initial velocity
       }
     }
   }
+
   // Best performances are initially current performances
   findPerformance(particles, perf, NULL, EVOLVE);
   for (i = 0; i < NB_PARTICLE; i++) {
-    lbestperf[i] = perf[i];
-    lbestage[i] = 1.0;  // One performance so far
-    nbbestperf[i] = perf[i];
+     lbestperf[i] = perf[i];
+     lbestage[i] = 1.0;  // One performance so far
+     nbbestperf[i] = perf[i];
   }
+
   // Find best neighborhood performances
   updateNBPerf(lbest,lbestperf,nbbest,nbbestperf,neighbors);
 
@@ -560,10 +566,12 @@ void pso(double best_weight[DATASIZE]){
     for (i = 0; i < NB_PARTICLE; i++) {
       for (j = 0; j < DATASIZE; j++) {
 
+          // Compute velocity in the search space
           v[i][j] *= (double) DAMPING;
           v[i][j] += (double) (LWEIGHT*rnd()*(lbest[i][j] - particles[i][j]) + NBWEIGHT*rnd()*(nbbest[i][j] - particles[i][j]));
           particles[i][j] += v[i][j]; // Move particles
 
+          // Limit of the domain
           if(DOMAIN_WEIGHT){
             if(j>=(NB_SENSORS)){
                 limit_weight(MIN_WEIGHT_P, MAX_WEIGHT_P, particles, i, j);
@@ -575,13 +583,10 @@ void pso(double best_weight[DATASIZE]){
       }
     }
 
-
-
      // RE-EVALUATE PERFORMANCES OF PREVIOUS BESTS
 #if NOISY == 1
     findPerformance(lbest,lbestperf,lbestage,EVOLVE_AVG);
 #endif
-
 
     // Find new performance
     findPerformance(particles,perf,NULL,EVOLVE);
@@ -592,54 +597,66 @@ void pso(double best_weight[DATASIZE]){
     // Update best neighborhood performance
     updateNBPerf(lbest,lbestperf,nbbest,nbbestperf,neighbors);
 
+
+    // Find and print the best result of the last PSO_iteration
     double temp[DATASIZE];
     bestperf = bestResult(lbest,lbestperf,temp);
     printf("\n...................................................................................................................\nBest performance of the iteration : %lf\n ...................................................................................................................\n",bestperf);
-   }
-   findPerformance(lbest,lbestperf,NULL,SELECT);
-   bestperf = bestResult(lbest,lbestperf,best_weight);
-   printf("_____Best performance found\n");
-   printf("Performance over %d iterations: %lf\n",ITS_PSO,bestperf);
-   sprintf(label, "Optimization process over.");
-   wb_supervisor_set_label(0,label,0.01,0.01,0.1,0xffffff,0,FONT);
+    }
+
+    // Find and print the best result of the PSO
+    findPerformance(lbest,lbestperf,NULL,SELECT);
+    bestperf = bestResult(lbest,lbestperf,best_weight);
+    printf("_____Best performance found\n");
+    printf("Performance over %d iterations: %lf\n",ITS_PSO,bestperf);
+
+    // Display end of the PSO
+    sprintf(label, "Optimization process over.");
+    wb_supervisor_set_label(0,label,0.01,0.01,0.1,0xffffff,0,FONT);
 }
 
+
+/*
+ * Main function : Run the pso and display the best average performance
+*/
 int main() {
   reset();
   double best_weight[DATASIZE]; // best solution of pso
   double fit, w[ROBOTS][DATASIZE], f[ROBOTS];
   int i,j,k;  // Counter variables
-   // Get result of optimization
 
-   // Do N_RUNS runs and send the best controller found to the robot
-    for (j=0;j<N_RUNS;j++) {
-       pso(best_weight);
+  // Get result of optimization
+  // Do N_RUNS runs and send the best controller found to the robot
+  for (j=0;j<N_RUNS;j++) {
+    pso(best_weight);
 
     // Set robot weights to optimization results
-        fit = 0.0;
-        for (i=0;i<ROBOTS;i++) {
-            for (k=0;k<DATASIZE;k++)
-              w[i][k] = best_weight[k];
+    fit = 0.0;
+    for (i=0;i<ROBOTS;i++) {
+        for (k=0;k<DATASIZE;k++){
+            w[i][k] = best_weight[k];
         }
-        // Run FINALRUN tests and calculate average
-        printf("Running final runs\n");
-        for (i=0;i<FINALRUNS;i+=ROBOTS) {
-            fitness(w,f);
-            for (k=0;k<ROBOTS && i+k<FINALRUNS;k++) {
-                //fitvals[i+k] = f[k];
-                fit += f[k];
-            }
-        }
-        fit /= FINALRUNS;  // average over the 10 runs
-
-        printf("Average Performance: %.3f\n",fit);
     }
 
-    /* Wait forever */
-    while (1){
+    // Run FINALRUN tests and calculate average
+    printf("Running final runs\n");
+    for (i=0;i<FINALRUNS;i+=ROBOTS) {
         fitness(w,f);
+        for (k=0;k<ROBOTS && i+k<FINALRUNS;k++) {
+            fit += f[k];
+        }
     }
-    return 0;
+    fit /= FINALRUNS;  // average over the 10 runs
+
+    printf("Average Performance: %.3f\n",fit);
+  }
+
+  /* Wait forever */
+  while (1){
+    fitness(w,f);
+  }
+
+  return 0;
 }
 
 

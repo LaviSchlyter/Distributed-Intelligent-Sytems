@@ -5,7 +5,7 @@ sceneTreePerspectives: 000000ff0000000100000002000000c00000010501000000060100000
 maximizedDockId: -1
 centralWidgetVisible: 1
 orthographicViewHeight: 1
-textFiles: 1 "controllers/pso_robot_flock/pso_robot_flock.c" "controllers/pso_sup_flock/pso_sup_flock.c"
+textFiles: 0 "controllers/pso_robot_flock/pso_robot_flock.c" "controllers/pso_sup_flock/pso_sup_flock.c"
 consoles: Console:All:All
 renderingDevicePerspectives: epuck0:camera;1;1;0;0
 renderingDevicePerspectives: epuck1:camera;1;1;0;0
