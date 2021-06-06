@@ -371,8 +371,8 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
         /// tmp11 = eye(4) - K*C
         substract(3, 3, Id3, tmp10, tmp11);
         double tmp12[3][3];
-        /// Cov_new = Cov_new*(eye(4) - K*C)
-        multiply(3, 3, tmp11, 3, 3, Cov, tmp12);
+        /// Cov_new = (eye(4) - K*C)*Cov_new
+        multiply(3, 3, Cov, 3, 3, tmp11, tmp12);
         
         /// End Compute new covariance matrix
         
@@ -596,8 +596,8 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
         double tmp7[4][4];
         // tmp7 = eye(4) - K*C
         substract(4, 4, Id4, tmp6, tmp7);
-        // Cov_new = Cov_new*(eye(4) - K*C)
-        multiply(4, 4, Cov, 4, 4, tmp7, tmp6);
+        // Cov_new = (eye(4) - K*C)*Cov_new
+        multiply(4, 4, tmp7, 4, 4, Cov, tmp6);
         
         /// End updating of covariance
         
