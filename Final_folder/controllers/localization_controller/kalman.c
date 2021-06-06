@@ -1,13 +1,16 @@
+/*****************************************************************************/
+/* File:         kalman.c                                                    */
+/* Version:      1.0                                                         */
+/* Date:         06-Jun-21                                                   */
+/* Description:  Compute the odometry with a GPS update every second           */
+/*                                                                           */
+/* Author:      06-Jun-21 by Lavinia Schlyter and Clément Cosson             */
+/*****************************************************************************/
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 
 #include "kalman.h"
-/** Kalman filter
-  * Framework to estimate an unknown variable using a series of measurements containing noise.
-  * Best possible linear estimator
-  *
-*/
 
 
 /*CONSTANTS*/
@@ -18,7 +21,7 @@
 #define false 0
 
 #define VERBOSE_ACC_KAL false                       // Print the accelerometer Kalman
-#define VERBOSE_WHEEL_KAL true                       // Print the wheel encoder Kalman
+#define VERBOSE_WHEEL_KAL false                       // Print the wheel encoder Kalman
 
 
 /// Variables to store the pose of wheel and the position+velocities for accelerometer
@@ -410,13 +413,32 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
 
 }
 
+/**
+ * Computing the position using the accelerometer and using _pose for updating every second where _pose is the GPS measurement
+ * rescaled to the robots original position, the heading is given by the wheel encoder
+ * @param pos_kal_acc Saves the position computed through kalman
+ * @param time_step Time step in webots
+ * @param time_now Current time
+ * @param heading Wheel encoder heading
+ * @param meas_ Measurement structure
+ * @param pose_ Pose structure where the true positon are stored
+ */
 
 void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_now, const double heading,
                         const measurement_t meas_, const pose_t pose_) {
+                        
+    
+    /** Acceleration
+    Because the accelerometer stands on the robot frame and we consider the robot to not slide, we only account for its "forward" acceleration (2nd component in acceleration vector); this is then projected onto the revelant frame 
+    **/    
+    
+    // Remove bias          
     double acc_r = ( meas_.acc[1] - meas_.acc_mean[1]);
     
+    // Project
     double acceleration[2][1] = {{acc_r*cos(heading)}, {acc_r*sin(heading)}};
 
+    // True position vector (updated using GPS) in robot frame
     double z[2][1] = {{pose_.x}, {pose_.y}};
 
 
@@ -602,6 +624,7 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
 
 }
 
+// Reset the values to zero 
 void kal_reset()
 {
  	memset(&X_wheel, 0 , sizeof(double));
