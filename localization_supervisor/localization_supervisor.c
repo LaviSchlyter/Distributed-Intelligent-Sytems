@@ -20,15 +20,15 @@
 
 //These parameters must be adapted for each flock and world
 #define FLOCK_SIZE	5 		// Total number of robots in simulation
+
+// This line must be uncommented for all simulaltions in the obstacle or localization world or for crossing with 2 teams of 5 or more robots each 
 static int robot_id[14] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13}; //names of robots: epuck%d
-//Uncomment the line above for all simulations in the obstacle or localization world, 
-//or for crossing with 2 teams of 5 or more robots.
 //Else, use:
-//For crossing with 2 robots in each team:
+// - For crossing with 2 robots in each team:
 //static int robot_id[14] = {0,1,5,6}; //names of robots: epuck%d
-//For crossing with 3 robots in each team:
+//- For crossing with 3 robots in each team:
 //static int robot_id[14] = {0,1,2,5,6,7}; //names of robots: epuck%d
-//For crossing with 4 robots in each team:
+//- For crossing with 4 robots in each team:
 //static int robot_id[14] = {0,1,2,4,5,6,7,9}; //names of robots: epuck%d
 
 
