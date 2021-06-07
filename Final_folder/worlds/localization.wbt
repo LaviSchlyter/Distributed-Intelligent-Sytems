@@ -1,4 +1,4 @@
-#VRML_SIM R2019b utf8
+#VRML_SIM R2021a utf8
 WorldInfo {
   info [
     "Description"
@@ -6,6 +6,7 @@ WorldInfo {
     "Date: DD MMM YYYY"
   ]
   basicTimeStep 16
+  coordinateSystem "NUE"
 }
 Viewpoint {
   orientation -0.9995666877925173 0.0019323320214833942 0.02937180192726951 1.4461083142482485
@@ -102,10 +103,10 @@ DEF long_rock_3 Solid {
   }
 }
 DEF SUPERVISOR Robot {
-  controller ""
+  controller "localization_supervisor"
   supervisor TRUE
 }
-DEF ROBOT1 Robot {
+DEF epuck0 Robot {
   translation -2.9 0 0
   rotation 3.3485297301176603e-06 0.9999999999887875 -3.348518467756148e-06 -1.5707996939107844
   children [

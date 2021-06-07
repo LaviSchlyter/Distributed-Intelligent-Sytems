@@ -8,10 +8,7 @@
 void trajectory_1(WbDeviceTag dev_left_motor, WbDeviceTag dev_right_motor);
 void trajectory_2(WbDeviceTag dev_left_motor, WbDeviceTag dev_right_motor);
 
-// This trajectory is used for calibration. It computes the bias of the accelerometer
+// This trajectory is used for calibration. It computes the bias of the accelerometer by leaving the robot at a stand-still
 void trajectory_3(WbDeviceTag dev_left_motor, WbDeviceTag dev_right_motor);
-void trajectory_4(WbDeviceTag dev_left_motor, WbDeviceTag dev_right_motor);
-void trajectory_5(WbDeviceTag dev_left_motor, WbDeviceTag dev_right_motor);
-
 
 #endif

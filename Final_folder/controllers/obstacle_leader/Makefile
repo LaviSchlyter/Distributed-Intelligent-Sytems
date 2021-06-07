@@ -64,8 +64,9 @@
 ### VERBOSE = 1
 ###
 ###-----------------------------------------------------------------------------
-C_SOURCES= ../localization_controller/odometry.c ../localization_controller/kalman.c obstacle_leader.c
+
 ### Do not modify: this includes Webots global Makefile.include
+C_SOURCES = obstacle_leader.c ../localization_controller/odometry.c ../localization_controller/kalman.c
 null :=
 space := $(null) $(null)
 WEBOTS_HOME_PATH=$(subst $(space),\ ,$(strip $(subst \,/,$(WEBOTS_HOME))))

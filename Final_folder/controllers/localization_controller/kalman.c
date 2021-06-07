@@ -20,6 +20,9 @@
 #define true  1
 #define false 0
 
+// This is hardcoded in order to not import webots files in here
+#define dt                0.016               // TIME STEP in seconds
+
 #define VERBOSE_ACC_KAL false                       // Print the accelerometer Kalman
 #define VERBOSE_WHEEL_KAL false                       // Print the wheel encoder Kalman
 
@@ -34,9 +37,7 @@ static double K_wheel[3][3], K_acc[4][2];
 /// Store the pose (x,y,\f$\theta\f$)
 static pose_t _kal_wheel, _kal_acc;
 
-/// Time step of 16ms
-// This is hardcoded in order to not import webots files in here
-static const double dt = 0.016;
+
 
 // Record the last_gps_times
 double last_gps_time_whe = 0.0f;
@@ -372,7 +373,7 @@ void compute_kalman_wheels(pose_t *pos_kal_wheel, const int time_step, double ti
         substract(3, 3, Id3, tmp10, tmp11);
         double tmp12[3][3];
         /// Cov_new = (eye(4) - K*C)*Cov_new
-        multiply(3, 3, Cov, 3, 3, tmp11, tmp12);
+        multiply(3, 3, tmp11, 3, 3, Cov, tmp12);
         
         /// End Compute new covariance matrix
         
@@ -573,7 +574,7 @@ void compute_kalman_acc(pose_t *pos_kal_acc, const int time_step, double time_no
 	/// Start Updating measure
 	
         double tmp3[2][1];
-        // tmp3 = C*X_new (2x1)
+        // tmp3 = C*X_new
         multiply(2, 4, C, 4, 1, X_new_acc, tmp3);
 
         double tmp11[4][1];

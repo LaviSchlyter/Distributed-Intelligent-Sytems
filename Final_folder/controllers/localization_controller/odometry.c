@@ -10,9 +10,9 @@
 #include <string.h>
 #include <math.h>
 #include <stdbool.h>
+
 #include "odometry.h"
 
-// Code with minor changes taken from Lab03 DIS-EPFL
 //-----------------------------------------------------------------------------------//
 /*CONSTANTS*/
 #define WHEEL_AXIS 		0.057 		// Distance between the two wheels in meter

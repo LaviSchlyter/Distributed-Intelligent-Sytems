@@ -26,20 +26,35 @@
 #include <webots/emitter.h>
 #include <webots/receiver.h>
 
+
 #define NB_SENSORS	       8	  // Number of distance sensors
 #define MIN_SENS          350     // Minimum sensibility value
 #define MAX_SPEED         800     // Maximum speed
 #define MAX_SPEED_WEB      6.28   // Maximum speed webots
 #define TIME_STEP	       64	  // Length of time step in [ms]
-#define AVOIDANCE_THRESH    1800  // Threshold above which we enter obstacle avoidance
-#define MIGRATION_THRESH    70    // Threshold under which we enter migration state
 #define WHEEL_AXIS         0.057  // Distance between the two wheels in meters
 #define WHEEL_RADIUS       0.020  // Radius of the wheel in meters
-#define MIGRATION_WEIGHT    0.003   // Weight of attraction towards the common goal
+#define AVOIDANCE_THRESH    1800  // Threshold above which we enter obstacle avoidance
+#define MIGRATION_WEIGHT  0.014    // Weight of attraction towards the common goal
 
 //States of FSM
 #define AVOIDANCE 0
 #define MIGRATION 1
+
+//Use PSO-optimized weights; if 0, the code will use empirical values.
+//PSO weights are not recommended with the obstacle leader.
+#define PSO 0
+
+#if PSO
+//Matrix of Braitenberg sensor weights for obstacle avoidance
+int e_puck_matrix[2*NB_SENSORS] = {-2.75, 46.2, 149, 193.4, 168, -31,-164, -16,
+                                   -16, -164, -31, 168, 193.4, 149, 46.2, -2.75}; 
+#define MIGRATION_THRESH    180    // Threshold under which we enter migration state
+#else
+int e_puck_matrix[16] = {17,29,34,10,8,-38,-56,-76,
+                        -72,-58,-36,8,10,36,28,18}; // empirical values
+#define MIGRATION_THRESH    70    // Threshold under which we enter migration state
+#endif
 
 
 /*FUNCTIONS*/
@@ -68,13 +83,10 @@ static double speed[2];          // Speed calculated for migration
 
 static double last_gps_time_s = 0.0f;
 static pose_t _pose, _kal_wheel;
-//int e_puck_matrix[2*NB_SENSORS] = {17,29,34,10,8,-38,-56,-76,-72,-58,-36,8,10,36,28,18}; // for obstacle avoidance
-int e_puck_matrix[2*NB_SENSORS] = {-2.75, 46.2, 149, 193.4, 168, -31,-164, -16,
-                         -16, -164, -31, 168, 193.4, 149, 46.2, -2.75};
-// Initial robot position
-static pose_t _pose_origin = {-2.91, 0.0, 0.0};
+
+
 // Migration target
-double migr[2] = {4.4, 0.0};
+double migr[2] = {4.4, 0};
 
 /*
  * Reset the robot's devices and get its ID
@@ -115,7 +127,6 @@ static void reset() {
 
 	//Reading the robot's name.
 	sscanf(robot_name,"epuck%d",&robot_id_u); // read robot id from the robot's name
-    
         
 }
 
@@ -255,7 +266,8 @@ int main(){
 
 
         reset();                    // Resetting the robot
-        odo_reset(time_step);       // Resetting odometry        
+        odo_reset(time_step);       // Resetting odometry
+
         
         // initial state: migration
         fsm_state = MIGRATION;
@@ -362,6 +374,8 @@ int main(){
 void controller_get_pose_gps() {
 
     double time_now_s = wb_robot_get_time();
+    // Initial robot position
+    static pose_t _pose_origin = {-1.98, 0.000149883, 0.0};
     if (time_now_s - last_gps_time_s > 1.0f) { // Update gps measurements
         
         controller_get_gps();

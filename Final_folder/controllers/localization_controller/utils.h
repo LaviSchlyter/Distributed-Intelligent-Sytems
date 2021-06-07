@@ -3,6 +3,8 @@
 
 
 #define RAD2DEG(X)      X / M_PI * 180.0
+#define true 1
+#define false 0
 
 typedef struct 
 {

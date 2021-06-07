@@ -8,10 +8,12 @@
 /* Author:       Tifanny Portela                                             */
 /**************************************************************************************************************************/
 
-
 /* Tunable parameters:                                                                                                      */
-/* 1) This controller works for a FLOCK_SIZE of size 2,3,4,5,6 or 7 (change the value accordingly at line 30)               */
-/* 2) The controller type can be proportionnal (P) or proportional + integral (PI) (change the type accordingly at line 35) */
+/* 1) This controller works for a FLOCK_SIZE of size 2,3,4 or 5 (change the value accordingly at line 30)                   */
+/* 2) The controller type can be: (change the type accordingly at line 36)                                                  */
+/*     - Proportionnal (P)                                                                                                  */
+/*     - Proportional + integral (PI)                                                                                       */
+/*     - Non linear version of a PI (NPI)                                                                                   */
 
 #include <stdio.h>
 #include <math.h>
@@ -25,12 +27,18 @@
 #include <webots/receiver.h>
 
 // ------------------------- Adapt the flock size  ---------------------------
-#define FLOCK_SIZE            3     // Size of flock (2,3,4,5,6 or 7) of one group for Mataric
+#define FLOCK_SIZE            5     // Size of flock (2,3,4 or 5) of one group for Mataric controller
 
 // ------------------------- Choose your controller  -------------------------
 #define P   0
 #define PI  1
-#define CONTROLLER_TYPE P
+#define NPI 2
+#define CONTROLLER_TYPE PI
+
+// ------------------------- Choose your world  -------------------------
+#define CROSSING 0
+#define TEST_CROSSING 1
+#define WORLD TEST_CROSSING
 
 #define NB_SENSORS	       8	  // Number of distance sensors
 #define MIN_SENS          350     // Minimum sensibility value
@@ -40,10 +48,22 @@
 #define TIME_STEP	       64	  // Length of time step in [ms]
 
 #define AVOIDANCE_THRESH   1800  // Threshold above which we enter obstacle avoidance
-#define FORMATION_THRESH    70    // Threshold under which we enter formation state
 #define AXLE_LENGTH 	   0.052	// Distance between wheels of robot (meters)
 #define WHEEL_RADIUS	   0.0205	// Wheel radius (meters)
 #define DELTA_T			   0.064	// Timestep (seconds)
+
+//Use PSO-optimized weights; if 0, the code will use empirical values
+#define PSO 0
+#if PSO
+//Matrix of Braitenberg sensor weights for obstacle avoidance
+int e_puck_matrix[2*NB_SENSORS] = {-2.75, 46.2, 149, 193.4, 168, -31,-164, -16,
+                                   -16, -164, -31, 168, 193.4, 149, 46.2, -2.75}; 
+#define FORMATION_THRESH    180    // Threshold under which we enter formation state
+#else
+int e_puck_matrix[16] = {17,29,34,10,8,-38,-56,-76,
+                        -72,-58,-36,8,10,36,28,18}; // empirical values
+#define FORMATION_THRESH    70    // Threshold under which we enter formation state
+#endif
 
 //boolean values 
 #define TRUE 1
@@ -76,10 +96,6 @@ float target_range = 0.1414;
 float target_bearing;
 float target_bearing_followers[MAX_FLOCK_SIZE - 1] = { M_PI/4 , 7*M_PI/4 , M_PI/4 , 7*M_PI/4 };
 
-// Weight matrix for obstacle avoidance
-int e_puck_matrix[2*NB_SENSORS] = { 17 , 29 , 34 , 10 , 8 , -38 , -56 , -76 , -72 , -58 , -36 , 8 , 10 , 36 , 28 , 18 };
-
-
 /*
  * Reset the robot's devices and get its ID
  */
@@ -100,8 +116,7 @@ static void reset() {
 		ds[i]=wb_robot_get_device(s);	// the device name is specified in the world file
 		s[2]++;				// increases the device number
 	}
-	robot_name=(char*) wb_robot_get_name(); 
-	printf("robot_name: %s\n",robot_name );
+	robot_name=(char*) wb_robot_get_name();
 
 	for(i=0;i<NB_SENSORS;i++){
 		wb_distance_sensor_enable(ds[i],TIME_STEP);
@@ -110,7 +125,6 @@ static void reset() {
 	wb_receiver_enable(receiver,TIME_STEP);
 
 	sscanf(robot_name,"epuck%d",&robot_id_u); // read robot id from the robot's name
-    printf("Reset: robot %d\n",robot_id_u);
  
 }
 
@@ -190,7 +204,7 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
 /*
  * Check if the robot_ID is in group 1 (return True if that's the case)
  */
-bool robotID_in_group1(robot_id_u){
+int robotID_in_group1(robot_id_u){
 
    bool is_in_group1 = FALSE;
    
@@ -202,13 +216,13 @@ bool robotID_in_group1(robot_id_u){
 }
 
 /*
- * Returns the corresponding robot ID in group 1 of the current robot
+ * Returns the corresponding robot ID in group 1 of the current robot for the world crossing
 */
 int corresponding_robot_id_in_group1(){
 
     int corresponding_ID;
     
-    if (robot_id_u < FLOCK_SIZE){
+    if (robot_id_u < MAX_FLOCK_SIZE){
         corresponding_ID = robot_id_u;
     }
     else{
@@ -226,6 +240,37 @@ int corresponding_robot_id_in_group1(){
         }
         else {
             corresponding_ID = 3;
+        }
+    }
+
+    return corresponding_ID;
+}
+
+/*
+ * Returns the corresponding robot ID in group 1 of the current robot for the world test_crossing
+*/
+int corresponding_robot_id_in_group1t(){
+
+    int corresponding_ID;
+    
+    if (robot_id_u < MAX_FLOCK_SIZE){
+        corresponding_ID = robot_id_u;
+    }
+    else{
+        if (robot_id_u == 5){
+            corresponding_ID = 0;
+        }
+        else if (robot_id_u == 6){
+            corresponding_ID = 1;
+        }
+        else if (robot_id_u == 7){
+            corresponding_ID = 2;
+        }
+        else if (robot_id_u == 8){
+            corresponding_ID = 3;
+        }
+        else {
+            corresponding_ID = 4;
         }
     }
 
@@ -273,6 +318,7 @@ void process_received_ping_messages(void) {
           
           friend_robot_id = (int)(inbuffer[5]-'0');  // since the name of the sender is in the received message.
           
+          if (WORLD == CROSSING){
 		  // group1
 		  if (robotID_in_group1(robot_id_u)){
       		    if ((FLOCK_SIZE >= 2) &&(friend_robot_id == 0) && (robot_id_u == 1)){
@@ -290,7 +336,7 @@ void process_received_ping_messages(void) {
                   else if ((FLOCK_SIZE >= 5) &&(friend_robot_id == 1) && (robot_id_u == 3)){
               	        measured_range_bearing[0] = range;
               	        measured_range_bearing[1] = bearing;
-                  }
+                   }
 		   }
 		   else { // group2
       		    if ((FLOCK_SIZE >= 2) && (friend_robot_id == 5) && (robot_id_u == 7)){
@@ -309,7 +355,51 @@ void process_received_ping_messages(void) {
               	        measured_range_bearing[0] = range;
               	        measured_range_bearing[1] = bearing;
                   }
-		    }
+		 }
+	      }
+	      else {
+    	          		  // group1
+		  if (robotID_in_group1(robot_id_u)){
+      		    if ((FLOCK_SIZE >= 2) &&(friend_robot_id == 0) && (robot_id_u == 1)){
+            	        measured_range_bearing[0] = range;
+            	        measured_range_bearing[1] = bearing;
+                  }
+                  else if ((FLOCK_SIZE >= 3) &&(friend_robot_id == 0) && (robot_id_u == 2)){
+              	        measured_range_bearing[0] = range;
+              	        measured_range_bearing[1] = bearing;
+                  }
+                  else if ((FLOCK_SIZE >= 4) && (friend_robot_id == 2) && (robot_id_u == 4)){
+              	        measured_range_bearing[0] = range;
+              	        measured_range_bearing[1] = bearing;
+                  }
+                  else if ((FLOCK_SIZE >= 5) &&(friend_robot_id == 1) && (robot_id_u == 3)){
+              	        measured_range_bearing[0] = range;
+              	        measured_range_bearing[1] = bearing;
+                   }
+		   }
+		   else { // group2
+      		    if ((FLOCK_SIZE >= 2) && (friend_robot_id == 5) && (robot_id_u == 6)){
+            	        measured_range_bearing[0] = range;
+            	        measured_range_bearing[1] = bearing;
+                  }
+                  else if ((FLOCK_SIZE >= 3) && (friend_robot_id == 5) && (robot_id_u == 7)){
+              	        measured_range_bearing[0] = range;
+              	        measured_range_bearing[1] = bearing;
+                  }
+                  else if ((FLOCK_SIZE >= 4) && (friend_robot_id == 7) && (robot_id_u == 9)){
+              	        measured_range_bearing[0] = range;
+              	        measured_range_bearing[1] = bearing;
+                  }
+                  else if ((FLOCK_SIZE >= 5) && (friend_robot_id == 6) && (robot_id_u == 8)){
+              	        measured_range_bearing[0] = range;
+              	        measured_range_bearing[1] = bearing;
+                  }
+		 }
+	      
+	      }
+
+		    
+		    
            wb_receiver_next_packet(receiver);
     }
 }
@@ -357,6 +447,12 @@ void range_bearing_to_command(int *msl, int *msr){
           w = Kw*delta_bearing;// Compute rotational control
     }
     else if (CONTROLLER_TYPE == PI){
+          integrator = integrator + DELTA_T/2.0*(prev_delta_bearing + delta_bearing);
+          u = Ku*delta_range*cosf(delta_bearing) + Ki*integrator;// Compute forward control
+          w = Kw*delta_bearing;// Compute rotational control
+          prev_delta_bearing = delta_bearing;
+    }
+    else if (CONTROLLER_TYPE == NPI){
           integrator = integrator + DELTA_T/2.0*(prev_delta_bearing*sigmoid(prev_delta_bearing) + delta_bearing*sigmoid(delta_bearing));
           u = Ku*delta_range*cosf(delta_bearing) + Ki*integrator;// Compute forward control
           w = Kw*delta_bearing;// Compute rotational control
@@ -381,8 +477,14 @@ int main(){
     int max_sens;                   // Store highest sensor value
     int corresponding_robot_id;     // Corresponding robot ID in group 1
    
-    reset();			            // Resetting the robot
-    corresponding_robot_id = corresponding_robot_id_in_group1();
+    reset();	
+    if (WORLD == CROSSING){            
+      corresponding_robot_id = corresponding_robot_id_in_group1();
+    }
+    else{
+      corresponding_robot_id = corresponding_robot_id_in_group1t();
+    }
+    
     target_bearing = target_bearing_followers[corresponding_robot_id - 1]; // Set the bearing target for the current robot
     fsm_state = FORMATION; // initial FSM's state: formation
 

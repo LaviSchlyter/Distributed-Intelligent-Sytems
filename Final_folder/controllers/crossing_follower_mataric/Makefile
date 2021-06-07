@@ -64,7 +64,7 @@
 ### VERBOSE = 1
 ###
 ###-----------------------------------------------------------------------------
-
+C_SOURCES = crossing_follower_mataric.c
 ### Do not modify: this includes Webots global Makefile.include
 null :=
 space := $(null) $(null)

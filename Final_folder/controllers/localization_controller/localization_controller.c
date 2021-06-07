@@ -42,11 +42,9 @@ If you would like to calibrate please:
 */
 // 
 #define TIME_INIT_ACC 0           // Time in seconds
-#define true 1
-#define false 0
 #define VERBOSE_CALIBRATION false // Set to true for calibrating the mean acceleration
 #define VERBOSE_PRINT_LOG true    // Print log on CSV file
-#define VERBOSE_ROBOT_POSE true        // Print the position of the robot updated each second
+#define VERBOSE_ROBOT_POSE false        // Print the position of the robot updated each second
 
 /*VARIABLES*/
 static pose_t _pose, _odo_acc, _odo_enc, _kal_wheel, _kal_acc;
@@ -307,14 +305,14 @@ void controller_get_encoder() {
 }
 
 /**
- * @brief      Compute the mean of the 3-axis accelerometer. The result is stored in array _meas.acc
+ * @brief      Compute the mean of the 3-axis accelerometer. The result is stored in array _meas.acc_mean_calibration
  */
 void controller_compute_mean_acc() {
 
     static int count = 0;
     count++;
 
-    // Remove the effects of strong acceleration at the beginning
+    // Remove the effects of strong acceleration at the beginning that may be caused by the robot falling from a certain height 
     if (count > 20)
     {
         for (int i = 0; i < 3; i++) {
@@ -325,6 +323,7 @@ void controller_compute_mean_acc() {
     if (count == (int) ((TIME_INIT_ACC / (double) time_step) * 1000 - 1)) {
         printf("Accelerometer initialization Done ! \n");
         for (int i = 0; i < 3; i++) {
+            
             _meas.acc_mean_calibration[i] = _meas.acc_mean_calibration[i] / (count-20);
         }
 
@@ -394,8 +393,6 @@ bool controller_error(bool test, const char *message, int line, const char *file
         char buffer[256];
 
         sprintf(buffer, "file : %s, line : %d,  error : %s", fileName, line, message);
-
-        fprintf(stderr, buffer);
 
         return (true);
     }

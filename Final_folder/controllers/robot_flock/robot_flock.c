@@ -40,20 +40,31 @@
 #define WHEEL_RADIUS        0.0205    // Wheel radius (meters)
 #define DELTA_T        0.064    // Timestep (seconds)
 
-// Reynolds
+//Use PSO-optimized weights; if 0, the code will use empirical values
+#define PSO 1
+#if PSO
+//Matrix of Braitenberg sensor weights for obstacle avoidance
+int e_puck_matrix[2*NB_SENSORS] = {-2.75, 46.2, 149, 193.4, 168, -31,-164, -16,
+                                   -16, -164, -31, 168, 193.4, 149, 46.2, -2.75}; 
+#define RULE1_THRESHOLD     0.074   // Threshold to activate aggregation rule.
+#define RULE1_WEIGHT        0.044   // Weight of aggregation rule. 
+#define RULE2_THRESHOLD     0.004   // Threshold to activate dispersion rule.
+#define RULE2_WEIGHT        0.038       // Weight of dispersion rule. 
+#define MIGRATION_WEIGHT    0.0014   // Wheight of attraction towards the common goal. default 
+#else
+int e_puck_matrix[16] = {17,29,34,10,8,-38,-56,-76,
+                        -72,-58,-36,8,10,36,28,18}; // empirical values
 #define RULE1_THRESHOLD     0.2   // Threshold to activate aggregation rule.
-#define RULE1_WEIGHT        (0.6/10)*1       // Weight of aggregation rule. 
-
+#define RULE1_WEIGHT        0.06   // Weight of aggregation rule. 
 #define RULE2_THRESHOLD     0.15   // Threshold to activate dispersion rule.
-#define RULE2_WEIGHT        (0.02/10)*1       // Weight of dispersion rule. 
-
+#define RULE2_WEIGHT        0.002       // Weight of dispersion rule. 
+#define MIGRATION_WEIGHT    0.001   // Wheight of attraction towards the common goal. default 
+#endif
 /** 
   As we have seen in the lab, the constistency rule may cause some issues and 
   we thus set it to zero and use the migration urge 
 **/
 #define RULE3_WEIGHT        (1.0/10)*0   // Weight of consistency rule. 
-
-#define MIGRATION_WEIGHT    (0.01/10)   // Wheight of attraction towards the common goal. default 
 
 #define MIGRATORY_URGE 1 // Tells the robots if they should just go forward or move towards a specific migratory direction
 
@@ -66,9 +77,6 @@ WbDeviceTag emitter;        // Handle for the emitter node
 WbDeviceTag left_encoder;//handler for left encoder of the robot
 WbDeviceTag right_encoder;//handler for right encoder of the robot
 WbDeviceTag dev_gps; // GPS handler
-
-int e_puck_matrix[16] = {17, 29, 34, 10, 8, -60, -64, -84,
-                         -80, -66, -62, 8, 10, 36, 28, 18}; // for obstacle avoidance
 
 int robot_id_u, robot_id;    // Unique and normalized (between 0 and FLOCK_SIZE-1) robot ID
 int robot_verbose;

@@ -11,16 +11,14 @@
 
 /* Tunable parameters:
  
- 1) With this controller you can change the number of edges in the graph by changing NB_EDGES (4,8 or 10) for a fixed FLOCK_SIZE of 5. Here are the possible combinations (change the values accordingly at line 42-43):
+ 1) With this controller you can change the number of edges in the graph by changing NB_EDGES (4,8 or 10) for a fixed FLOCK_SIZE of 5. Here are the possible combinations (change the values accordingly at line 35-36):
     - (FLOCK_SIZE = 5, NB_EDGES = 4)
     - (FLOCK_SIZE = 5, NB_EDGES = 8)
     - (FLOCK_SIZE = 5, NB_EDGES = 10)
- 2) With this controller you can change the number of robots in the formation by changing FLOCK_SIZE (3,4 or 5) for a fully connected graph. Here are the possible combinations (change the values accordingly at line 42-43):
+ 2) With this controller you can change the number of robots in the formation by changing FLOCK_SIZE (3,4 or 5) for a fully connected graph. Here are the possible combinations (change the values accordingly at line 35-36):
     - (FLOCK_SIZE = 3, NB_EDGES = 3)
     - (FLOCK_SIZE = 4, NB_EDGES = 6)
-    - (FLOCK_SIZE = 5, NB_EDGES = 10)
-3) The controller type can be proportionnal (P) or proportional + integral (PI) (change the type accordingly at line 39) */
-
+    - (FLOCK_SIZE = 5, NB_EDGES = 10) s*/
 
 #include <stdio.h>
 #include <math.h>
@@ -33,14 +31,14 @@
 #include <webots/emitter.h>
 #include <webots/receiver.h>
 
-// ---------------------------------------- Choose the controller's type ----------------------------------------
-#define P   0
-#define PI  1
-#define CONTROLLER_TYPE P
-
 // ------------------------- Choose the flock size and the number of edges of the graph -------------------------
-#define FLOCK_SIZE  3  // Size of flock (3,4 or 5)
-#define NB_EDGES    3  // number of edges (3,4,6,8 or 10)
+#define FLOCK_SIZE  5  // Size of flock (3,4 or 5)
+#define NB_EDGES    8  // number of edges (3,4,6,8 or 10)
+
+// ------------------------- Choose your world  -------------------------
+#define CROSSING 0
+#define TEST_CROSSING 1
+#define WORLD TEST_CROSSING
 
 #define NB_SENSORS          8      // Number of distance sensors
 #define MIN_SENS          350      // Minimum sensibility value
@@ -55,6 +53,20 @@
 #define AXLE_LENGTH         0.052    // Distance between wheels of robot (meters)
 #define WHEEL_RADIUS        0.0205   // Wheel radius (meters)
 #define DELTA_T             0.064    // Timestep (seconds)
+
+//Use PSO-optimized weights; if 0, the code will use empirical values
+#define PSO 0
+
+#if PSO
+//Matrix of Braitenberg sensor weights for obstacle avoidance
+int e_puck_matrix[2*NB_SENSORS] = {-2.75, 46.2, 149, 193.4, 168, -31,-164, -16,
+                                   -16, -164, -31, 168, 193.4, 149, 46.2, -2.75}; 
+#define FORMATION_THRESH    180    // Threshold under which we enter formation state
+#else
+int e_puck_matrix[16] = {17,29,34,10,8,-38,-56,-76,
+                        -72,-58,-36,8,10,36,28,18}; // empirical values
+#define FORMATION_THRESH    70    // Threshold under which we enter formation state
+#endif
 
 //boolean values
 #define TRUE 1
@@ -80,15 +92,8 @@ int robot_id_u;                    // unique robot ID
 int corresponding_robot_ID;        // Corresponding robot ID in group 1 for robots of group 2
 char* robot_name;
 
-// for PI controller : using tustin's approx
-float integrator;
-float prev_delta_bearing;
-
 float meas_range_laplacian[MAX_FLOCK_SIZE];   // measured range for robot i to every robot j
 float meas_bearing_laplacian[MAX_FLOCK_SIZE]; // measured bearing for robot i to every robot j
-
-// Weight matrix for obstacle avoidance
-int e_puck_matrix[2*NB_SENSORS] = { 17 , 29 , 34 , 10 , 8 , -38 , -56 , -76 , -72 , -58 , -36 , 8 , 10 , 36 , 28 , 18 };
 
 // Incidence matrix
 float I[FLOCK_SIZE][NB_EDGES] = {{0.0}};
@@ -168,7 +173,6 @@ static void reset() {
         s[2]++;                // increases the device number
     }
     robot_name=(char*) wb_robot_get_name();
-    printf("robot_name: %s\n",robot_name );
 
     for(i=0;i<NB_SENSORS;i++){
         wb_distance_sensor_enable(ds[i],64);
@@ -178,8 +182,6 @@ static void reset() {
 
     //Reading the robot's name. Pay attention to name specification when adding robots to the simulation!
     sscanf(robot_name,"epuck%d",&robot_id_u); // read robot id from the robot's name
-    printf("Reset: robot %d\n",robot_id_u);
- 
 }
 
 
@@ -245,7 +247,7 @@ void init_laplacian_matrices(void){
 
 /*
  * The two groups behave the same, hence each robot of group 2 behaves like one robot of group 1.
- * This function tells to the robots of group 2 their corresponding robot ID in group 1
+ * This function tells to the robots of group 2 their corresponding robot ID in group 1 for the crossing world 
  */
 int corresponding_robot_ID_in_group1(int robot_id){
 
@@ -268,6 +270,33 @@ int corresponding_robot_ID_in_group1(int robot_id){
     }
     return corresponding_robot_ID;  
 }
+
+/*
+ * The two groups behave the same, hence each robot of group 2 behaves like one robot of group 1.
+ * This function tells to the robots of group 2 their corresponding robot ID in group 1 for the test crossing world 
+ */
+int corresponding_robot_ID_in_group1t(int robot_id){
+
+    int corresponding_robot_ID = 0;
+
+    if (robot_id == 5){
+        corresponding_robot_ID = 0;
+    }
+    else if (robot_id == 7){
+        corresponding_robot_ID = 2;
+    }
+    else if (robot_id == 6){
+        corresponding_robot_ID = 1;
+    }
+    else if (robot_id == 9){
+        corresponding_robot_ID = 4;
+    }
+    else if (robot_id == 8){
+        corresponding_robot_ID = 3;
+    }
+    return corresponding_robot_ID;  
+}
+
 
 /*
  * Check if the robot number i is in one of the groups (return True if that's the case)
@@ -346,8 +375,16 @@ void process_received_ping_messages(void) {
           }// in group 2 and it's one of my friends (ID 5 to 9)
           else if ((!robotID_in_group1()) && (friend_robot_id > 4)){ 
           
-              meas_range_laplacian[corresponding_robot_ID_in_group1(friend_robot_id)] = range;
-              meas_bearing_laplacian[corresponding_robot_ID_in_group1(friend_robot_id)] = bearing;
+              if (WORLD == TEST_CROSSING){
+                 meas_range_laplacian[corresponding_robot_ID_in_group1t(friend_robot_id)] = range;
+                 meas_bearing_laplacian[corresponding_robot_ID_in_group1t(friend_robot_id)] = bearing;
+              }
+              else{
+                 meas_range_laplacian[corresponding_robot_ID_in_group1(friend_robot_id)] = range;
+                 meas_bearing_laplacian[corresponding_robot_ID_in_group1(friend_robot_id)] = bearing;
+              }
+        
+              
           }
         
           wb_receiver_next_packet(receiver);
@@ -427,24 +464,6 @@ void limit_and_rescale(int *number1, int *number2, int limit) {
     }
 }
 
-/*
- * Calculates the weight of the integral part of the controller (allowing the integrator to
- * discharge when the leader and the followers are not aligned)
-*/
-float sigmoid(float delta_bearing){
-  
-  float slope = 10.0;
-  float weight_coeff = 5.0;
-  float alpha0 = M_PI/4.0;
-  float gamma = alpha0 + 1.0/slope*logf(weight_coeff - 1.0);
-  
-  if (delta_bearing > M_PI){
-      delta_bearing = delta_bearing - 2*M_PI;  // between -pi and pi to use sigmoid
-  }
-  float sigmoid = 1.0 - weight_coeff*(1.0/(1.0 + exp(-slope*(delta_bearing - gamma))));
-  
-  return sigmoid;
-}
 
 
 /*
@@ -456,7 +475,6 @@ void range_bearing_to_command(int *msl, int *msr){
 
     float Ku = 0.2;  // Forward control coefficient 0.2
     float Kw = 0.4;  // Rotational control coefficient 0.5
-    float Ki = 0.001;  // integrator coeff 0.01
     float delta_bearing = 0.0;
     float delta_range = 0.0;
     float u,w;
@@ -472,7 +490,13 @@ void range_bearing_to_command(int *msl, int *msr){
     }
     else{
     // group 2
-        index = corresponding_robot_ID_in_group1(robot_id_u);
+    
+        if (WORLD == TEST_CROSSING){
+           index = corresponding_robot_ID_in_group1t(robot_id_u);
+        }
+        else{
+           index = corresponding_robot_ID_in_group1(robot_id_u);
+        }
     }
           
     for (i = 0; i < MAX_FLOCK_SIZE; i++){
@@ -489,17 +513,9 @@ void range_bearing_to_command(int *msl, int *msr){
     delta_range = sqrt(pow(e_xi,2) + pow(e_yi,2));
     delta_bearing = atan2f(e_yi, e_xi);
           
-    if (CONTROLLER_TYPE == P){  // Proportional controller
-        u = Ku*delta_range;// Compute forward control
-        w = Kw*delta_bearing;// Compute rotational control
-    }
-    
-    else if (CONTROLLER_TYPE == PI){ // Proportional + Integral controller
-        integrator = integrator + DELTA_T/2.0*(prev_delta_bearing*sigmoid(prev_delta_bearing) + delta_bearing*sigmoid(delta_bearing));
-        u = Ku*delta_range+ Ki*integrator;// Compute forward control
-        w = Kw*delta_bearing;// Compute rotational control
-        prev_delta_bearing = delta_bearing;
-    }
+    // Proportional controller
+    u = Ku*delta_range;
+    w = Kw*delta_bearing;
                   
     *msl = (u - AXLE_LENGTH*w/2.0) * (1000.0 / WHEEL_RADIUS);
     *msr = (u + AXLE_LENGTH*w/2.0) * (1000.0 / WHEEL_RADIUS);
@@ -602,7 +618,7 @@ int main(){
         wb_motor_set_velocity(right_motor, msr_w);
                            
         //Condition to exit avoidance state
-        if((fsm_state == AVOIDANCE) && (max_sens < 70)){ //Exit condition of "avoidance
+        if((fsm_state == AVOIDANCE) && (max_sens < FORMATION_THRESH)){ //Exit condition of "avoidance
            fsm_state = FORMATION;
         }
 

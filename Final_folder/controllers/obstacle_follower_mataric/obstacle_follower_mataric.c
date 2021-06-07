@@ -10,7 +10,10 @@
 
 /* Tunable parameters:                                                                                                      */
 /* 1) This controller works for a FLOCK_SIZE of size 2,3,4,5,6 or 7 (change the value accordingly at line 30)               */
-/* 2) The controller type can be proportionnal (P) or proportional + integral (PI) (change the type accordingly at line 35) */
+/* 2) The controller type can be: (change the type accordingly at line 36)                                                  */
+/*     - Proportionnal (P)                                                                                                  */
+/*     - Proportional + integral (PI)                                                                                       */
+/*     - Non linear version of a PI (NPI)                                                                                   */
 
 #include <stdio.h>
 #include <math.h>
@@ -23,14 +26,13 @@
 #include <webots/emitter.h>
 #include <webots/receiver.h>
 
-
 // ------------------------- Adapt the flock size  ---------------------------
-#define FLOCK_SIZE            6     // Size of flock (2,3,4,5,6 or 7) of one group for Mataric
-#define FLOCK_SIZE            6     // Size of flock (2,3,4,5,6 or 7) of one group for Mataric
+#define FLOCK_SIZE            5     // Size of flock (2,3,4,5,6 or 7) of one group for Mataric
 
 // ------------------------- Choose your controller  -------------------------
 #define P   0
 #define PI  1
+#define NPI 2
 #define CONTROLLER_TYPE PI
 
 #define NB_SENSORS	       8	  // Number of distance sensors
@@ -41,7 +43,6 @@
 
 #define TIME_STEP	        64	  // Length of time step in [ms]
 #define AVOIDANCE_THRESH   1800   // Threshold above which we enter obstacle avoidance state
-#define FORMATION_THRESH    70    // Threshold under which we enter formation state
 
 #define AXLE_LENGTH 	  0.052	  // Distance between wheels of robot (meters)
 #define WHEEL_RADIUS	  0.0205  // Wheel radius (meters)
@@ -50,6 +51,20 @@
 //States of FSM
 #define AVOIDANCE 0
 #define FORMATION 1
+
+//Use PSO-optimized weights; if 0, the code will use empirical values
+#define PSO 0
+
+#if PSO
+//Matrix of Braitenberg sensor weights for obstacle avoidance
+int e_puck_matrix[2*NB_SENSORS] = {-2.75, 46.2, 149, 193.4, 168, -31,-164, -16,
+                                   -16, -164, -31, 168, 193.4, 149, 46.2, -2.75}; 
+#define FORMATION_THRESH    180    // Threshold under which we enter formation state
+#else
+int e_puck_matrix[16] = {17,29,34,10,8,-38,-56,-76,
+                        -72,-58,-36,8,10,36,28,18}; // empirical values
+#define FORMATION_THRESH    70    // Threshold under which we enter formation state
+#endif
 
 WbDeviceTag left_motor;      //handler for left wheel of the robot
 WbDeviceTag right_motor;     //handler for the right wheel of the robot
@@ -73,9 +88,6 @@ float target_bearing;
 float target_range = 0.1414;
 float target_bearing_followers[MAX_FLOCK_SIZE - 1] = { M_PI/4 , 7*M_PI/4 , M_PI/4 , 7*M_PI/4 ,  M_PI/4 ,  7*M_PI/4 };
 
-// Weight matrix for obstacle avoidance
-int e_puck_matrix[2*NB_SENSORS] = { 17 , 29 , 34 , 10 , 8 , -38 , -56 , -76 , -72 , -58 , -36 , 8 , 10 , 36 , 28 , 18 };
-
 /*
  * Reset the robot's devices and get its ID
  */
@@ -96,8 +108,7 @@ static void reset() {
 		ds[i]=wb_robot_get_device(s);	// the device name is specified in the world file
 		s[2]++;				// increases the device number
 	}
-	robot_name=(char*) wb_robot_get_name(); 
-	printf("robot_name: %s\n",robot_name );
+	robot_name=(char*) wb_robot_get_name();
 
 	for(i=0;i<NB_SENSORS;i++){
 		wb_distance_sensor_enable(ds[i],TIME_STEP);
@@ -105,7 +116,6 @@ static void reset() {
 	wb_receiver_enable(receiver,TIME_STEP);
 
 	sscanf(robot_name,"epuck%d",&robot_id_u); // read robot id from the robot's name
-    printf("Reset: robot %d\n",robot_id_u);
 }
 
 
@@ -294,6 +304,12 @@ void range_bearing_to_command(int *msl, int *msr){
         w = Kw*delta_bearing;// Compute rotational control
     }
     else if (CONTROLLER_TYPE == PI){
+        integrator = integrator + DELTA_T/2.0*(prev_delta_bearing + delta_bearing);
+        u = Ku*delta_range*cosf(delta_bearing) + Ki*integrator;// Compute forward control
+        w = Kw*delta_bearing;// Compute rotational control
+        prev_delta_bearing = delta_bearing;
+    }
+    else if (CONTROLLER_TYPE == NPI){
         integrator = integrator + DELTA_T/2.0*(prev_delta_bearing*sigmoid(prev_delta_bearing) + delta_bearing*sigmoid(delta_bearing));
         u = Ku*delta_range*cosf(delta_bearing) + Ki*integrator;// Compute forward control
         w = Kw*delta_bearing;// Compute rotational control
